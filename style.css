@@ -1,0 +1,63 @@
+body {
+	font-family: Arial, sans-serif;
+	background-color: #fafafa;
+	text-align: center;
+}
+
+h2 {
+	margin-top: 10px;
+	margin-bottom: 5px;
+	color: #333;
+}
+
+h3 {
+	margin-top: 10px;
+	margin-bottom: 5px;
+	color: #333;
+}
+
+#dashboard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.row {
+  display: flex;
+  justify-content: center;
+}
+
+.upper {
+	border: 1px solid #ccc;
+	margin: 20px;
+	margin-bottom: 30px;
+	width: 700px;
+	height: 490px;
+	background-color: white;
+}
+
+.lower {
+	border: 1px solid #ccc;
+	margin: 5px;
+	width: 250px;
+	height: 175px;
+	background-color: white;
+}
+
+.tooltip {
+	position: absolute;
+	background: #333;
+	color: #fff;
+	padding: 6px 10px;
+	border-radius: 5px;
+	pointer-events: none;
+	font-size: 13px;
+	opacity: 0;
+	transition: opacity 0.15s ease-in-out;
+}
+
+.brush .selection {
+  fill: gray;
+  fill-opacity: 0.2;
+  stroke: none;
+}

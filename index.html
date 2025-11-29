@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>D3 Visualization Dashboard</title>
+	<script src="https://d3js.org/d3.v7.min.js"></script>
+	<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+	<h2>Mental Health & Social Media Balance</h2>
+	<h3>Visualization Dashboard</h3>
+	<div id="dashboard">
+		<div class="row">
+			<div id="chart" class="upper"></div>
+			<div id="chart" class="upper"></div>
+		</div>
+
+		<label>
+			Bar charts group by:
+			<select id="groupSelector">
+				<option value="">None</option>
+				<option value="Gender">Gender</option>
+				<option value="Social_Media_Platform">Social Media Platform</option>
+			</select>
+		</label>
+
+		<div class="row">
+			<div id="chart" class="lower"></div>
+			<div id="chart" class="lower"></div>
+			<div id="chart" class="lower"></div>
+			<div id="chart" class="lower"></div>
+			<div id="chart" class="lower"></div>
+			<div id="chart" class="lower"></div>
+			<div id="chart" class="lower"></div>
+		</div>
+	</div>
+
+	<script src="D3.js"></script>
+</body>
+</html>
