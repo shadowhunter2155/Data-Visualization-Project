@@ -46,15 +46,17 @@ h3 {
 
 .tooltip {
 	position: absolute;
-	background: #333;
-	color: #fff;
-	padding: 6px 10px;
+	background: white;
+	border: 1px solid #ccc;
+	padding: 6px;
 	border-radius: 5px;
 	pointer-events: none;
 	font-size: 13px;
 	opacity: 0;
 	transition: opacity 0.1s ease-in-out;
 }
+
+
 .legend {
     font-family: Arial, sans-serif;
 }
@@ -68,6 +70,7 @@ h3 {
     stroke: #ccc;
     stroke-width: 1px;
 }
+
 .brush .selection {
   fill: gray;
   fill-opacity: 0.2;
