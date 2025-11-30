@@ -47,6 +47,8 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		const groupBy = this.value;
 		barCharts.forEach(chart => chart.update(groupBy));
 	});
+	// init scatter
+	createScatter("#scatter", data);
 
 });
 
@@ -188,4 +190,217 @@ function createBarChart(container, data, field, bin) {
 	return {
 		update
 	};
+
+
 }
+
+//-----------------------------------------------------
+//  SCATTER PLOT (Daily Screen Time vs Sleep Quality)
+//-----------------------------------------------------
+function createScatter(container, data) {
+
+	const width = 700;
+	const height = 490;
+
+	const margin = {
+		top: 30,
+		right: 30,
+		bottom: 50,
+		left: 60
+	};
+
+	const plotWidth = width - margin.left - margin.right;
+	const plotHeight = height - margin.top - margin.bottom;
+
+	const svg = d3.select(container)
+		.append("svg")
+		.attr("width", width)
+		.attr("height", height);
+
+	
+	const inner = svg.append("g")
+		.attr("transform", `translate(${margin.left},${margin.top})`);
+
+	//---------------------------------------------------
+	// Scales
+	//---------------------------------------------------
+	const xScale = d3.scaleLinear()
+		.domain(d3.extent(data, d => d.Daily_Screen_Time))
+		.nice()
+		.range([0, plotWidth]);
+
+	const yScale = d3.scaleLinear()
+		.domain(d3.extent(data, d => d.Sleep_Quality))
+		.nice()
+		.range([plotHeight, 0]);
+
+	// 顏色漸層 1~10
+	const colorScale = d3.scaleLinear()
+		.domain([1, 10])
+		.range(["#4ea8de", "#ff6b6b"]); // 藍 → 紅
+
+	//---------------------------------------------------
+	// Axes
+	//---------------------------------------------------
+	inner.append("g")
+		.attr("transform", `translate(0,${plotHeight})`)
+		.call(d3.axisBottom(xScale));
+
+	inner.append("g").call(d3.axisLeft(yScale));
+
+	svg.append("text")
+		.attr("x", width / 2)
+		.attr("y", 20)
+		.attr("text-anchor", "middle")
+		.style("font-size", "16px")
+		.text("Daily Screen Time vs Sleep Quality");
+
+	// labels
+	svg.append("text")
+		.attr("x", width / 2)
+		.attr("y", height - 10)
+		.attr("text-anchor", "middle")
+		.style("font-size", "12px")
+		.text("Daily Screen Time (hours)");
+
+	svg.append("text")
+		.attr("transform", "rotate(-90)")
+		.attr("x", -height / 2)
+		.attr("y", 15)
+		.attr("text-anchor", "middle")
+		.style("font-size", "12px")
+		.text("Sleep Quality");
+
+	//---------------------------------------------------
+	// Tooltip
+	//---------------------------------------------------
+	const tooltip = d3.select("body")
+		.append("div")
+		.attr("class", "tooltip")
+		.style("opacity", 0);
+
+	//---------------------------------------------------
+	// 创建图例容器
+	//---------------------------------------------------
+	const legend = svg.append("g")
+		.attr("class", "legend")
+		.attr("transform", `translate(${width - 150}, ${margin.top + 20})`);
+
+	// 图例标题函数
+	function updateLegendTitle(field) {
+		const title = field === "Stress_Level" ? "Stress Level" : "Happiness Index";
+		legend.select(".legend-title").remove();
+		legend.append("text")
+			.attr("class", "legend-title")
+			.attr("x", 0)
+			.attr("y", -5)
+			.style("font-size", "12px")
+			.style("font-weight", "bold")
+			.text(title);
+	}
+
+	// 创建渐变色条
+	function createGradientLegend(field) {
+		// 移除旧的图例内容
+		legend.selectAll(".legend-item").remove();
+		legend.select(".legend-gradient").remove();
+
+		// 创建渐变色定义
+		const defs = svg.append("defs");
+		const gradient = defs.append("linearGradient")
+			.attr("id", "color-gradient")
+			.attr("x1", "0%")
+			.attr("x2", "100%")
+			.attr("y1", "0%")
+			.attr("y2", "0%");
+
+		gradient.append("stop")
+			.attr("offset", "0%")
+			.attr("stop-color", "#4ea8de");
+
+		gradient.append("stop")
+			.attr("offset", "100%")
+			.attr("stop-color", "#ff6b6b");
+
+		// 创建渐变色条
+		legend.append("rect")
+			.attr("class", "legend-gradient")
+			.attr("x", 0)
+			.attr("y", 0)
+			.attr("width", 120)
+			.attr("height", 10)
+			.style("fill", "url(#color-gradient)");
+
+		// 添加刻度标签
+		const legendScale = d3.scaleLinear()
+			.domain(colorScale.domain())
+			.range([0, 120]);
+
+		// 最小值标签
+		legend.append("text")
+			.attr("class", "legend-item")
+			.attr("x", 0)
+			.attr("y", 25)
+			.style("font-size", "10px")
+			.text("1");
+
+		// 最大值标签
+		legend.append("text")
+			.attr("class", "legend-item")
+			.attr("x", 120)
+			.attr("y", 25)
+			.style("font-size", "10px")
+			.style("text-anchor", "end")
+			.text("10");
+
+		
+			
+
+		updateLegendTitle(field);
+	}
+
+	//---------------------------------------------------
+	// Draw initial points
+	//---------------------------------------------------
+	const dots = inner.selectAll("circle")
+		.data(data)
+		.join("circle")
+		.attr("cx", d => xScale(d.Daily_Screen_Time))
+		.attr("cy", d => yScale(d.Sleep_Quality))
+		.attr("r", 5)
+		.attr("opacity", 0.85)
+		.attr("fill", d => colorScale(d.Stress_Level))
+		.on("mouseover", (event, d) => {
+			tooltip.transition().duration(150).style("opacity", 1);
+			tooltip.html(
+				`<b>User:</b> ${d.id}<br>
+				 <b>Screen Time:</b> ${d.Daily_Screen_Time}<br>
+				 <b>Sleep Quality:</b> ${d.Sleep_Quality}<br>
+				 <b>Stress:</b> ${d.Stress_Level}<br>
+				 <b>Happiness:</b> ${d.Happiness_Index}`
+			)
+				.style("left", event.pageX + 15 + "px")
+				.style("top", event.pageY - 28 + "px");
+		})
+		.on("mouseout", () => {
+			tooltip.transition().duration(200).style("opacity", 0);
+		});
+
+	// 初始化图例
+	createGradientLegend("Stress_Level");
+
+	//---------------------------------------------------
+	// Update color when dropdown changes
+	//---------------------------------------------------
+	d3.select("#scatterColorSelector").on("change", function () {
+		const field = this.value; // Stress_Level 或 Happiness_Index
+
+		dots.transition()
+			.duration(500)
+			.attr("fill", d => colorScale(d[field]));
+
+		// 更新图例标题
+		updateLegendTitle(field);
+	});
+}
+
