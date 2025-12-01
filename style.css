@@ -56,23 +56,8 @@ h3 {
 	transition: opacity 0.1s ease-in-out;
 }
 
-
-.legend {
-    font-family: Arial, sans-serif;
-}
-
-.legend-title {
-    font-weight: bold;
-    fill: #333;
-}
-
-.legend-gradient {
-    stroke: #ccc;
-    stroke-width: 1px;
-}
-
 .brush .selection {
-  fill: gray;
-  fill-opacity: 0.2;
-  stroke: none;
+	fill: gray;
+	fill-opacity: 0.2;
+	stroke: none;
 }

@@ -53,19 +53,13 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 
 	// init scatter chart
 	let scatterChart = createScatter("#scatter", data);
+	let bubbleChart = createBubbleGrid("#bubble", data);
+
 	// dropdown change listener
 	d3.select("#scatterColorSelector").on("change", function () {
 		const field = this.value;
 		scatterChart.update(field);
-	});
-
-	let bubbleChart = createBubbleGrid("#bubble", data);
-	
-	// 使用相同的下拉菜单控制两个图表的颜色
-	d3.select("#scatterColorSelector").on("change", function () {
-		const field = this.value;
-		scatterChart.update(field);
-		bubbleChart.update(field); // 同时更新气泡网格图
+		bubbleChart.update(field);
 	});
 });
 
@@ -85,7 +79,7 @@ function createBarChart(container, data, field, bin, isInterval) {
 	const yScale = d3.scaleLinear().range([plotHeight, 0]);
 	const xAxisG = inner.append("g").attr("transform", `translate(0,${plotHeight})`);
 	const yAxisG = inner.append("g");
-	const genderColors = { Male: "#4A90E2", Female: "#FF69B4", Other: "#9E9E9E" };
+	const genderColors = { "Male": "#4A90E2", "Female": "#FF69B4", "Other": "#9E9E9E" };
 	const socialAppColors = [
 		"#1f77b4", "#ff7f0e", "#2ca02c",
 		"#d62728", "#9467bd", "#8c564b" ];
@@ -134,8 +128,10 @@ function createBarChart(container, data, field, bin, isInterval) {
 						genderColors.Female,
 						genderColors.Other
 					]);
+					groups = ["Male", "Female", "Other"];
 			} else {
 				colorScale = d3.scaleOrdinal().range(socialAppColors);
+				groups = [...new Set(data.map(d => d[groupBy]))].sort();
 			}
 			// stacked bar chart with grouping
 			const grouped = d3.group(data, d => isInterval ? Math.round(d[field] / bin) * bin : d[field]);
@@ -145,8 +141,6 @@ function createBarChart(container, data, field, bin, isInterval) {
 				const valuesByGroup = groupCounts.map(([group, value]) => ({ group, value }));
 				return { key, values: valuesByGroup };
 			}).sort((a, b) => d3.ascending(+a.key, +b.key));
-
-			groups = [...new Set(data.map(d => d[groupBy]))].sort();
 		}
 
 		// scales
@@ -199,7 +193,7 @@ function createBarChart(container, data, field, bin, isInterval) {
 			.attr("width", barWidth)
 			.attr("y", plotHeight)
 			.attr("height", 0)
-			.on("mouseover", (event, d) => {
+			.on("mouseover", (event, d) => { //tooltips
 				const groupName = d3.select(event.currentTarget.parentNode).datum().key;
 				const count = d[1] - d[0];
 				let valueText;
@@ -213,7 +207,7 @@ function createBarChart(container, data, field, bin, isInterval) {
 				}
 				
 				let tooltipContent = `<b>Count:</b> ${count}<br>${valueText}`;
-				
+
 				if (groupBy !== "") {
 					tooltipContent += `<br><b>Group:</b> ${groupName}`;
 				}
@@ -305,6 +299,29 @@ function createScatter(container, data) {
 
 	inner.append("g").call(d3.axisLeft(yScale)).style("font-size", "12px");
 
+	// grid lines
+	inner.selectAll(".horizontal-grid")
+		.data(yScale.ticks(10))
+		.enter().append("line")
+		.attr("class", "horizontal-grid")
+		.attr("x1", 1)
+		.attr("x2", plotWidth +2)
+		.attr("y1", d => yScale(d))
+		.attr("y2", d => yScale(d))
+		.attr("stroke", "#eee")
+		.attr("stroke-width", 1);
+		
+	inner.selectAll(".vertical-grid")
+		.data(xScale.ticks(10))
+		.enter().append("line")
+		.attr("class", "vertical-grid")
+		.attr("x1", d => xScale(d))
+		.attr("x2", d => xScale(d))
+		.attr("y1", -5)
+		.attr("y2", plotHeight - 2)
+		.attr("stroke", "#eee")
+		.attr("stroke-width", 1);
+
 	// dots
 	let dots = inner.selectAll("circle")
 		.data(data)
@@ -317,6 +334,13 @@ function createScatter(container, data) {
 		.attr("stroke", "white")
 		.attr("stroke-width", 0.1)
 		.on("mouseover", (event, d) => {
+			d3.select(event.currentTarget).raise()
+				.transition()
+				.duration(200)
+				.attr("r", 6)
+				.attr("opacity", 1)
+				.attr("stroke-width", 1);
+			// tooltip
 			tooltip.style("opacity", 1).html(
 				`<b>Daily Screen Time:</b> ${d.Daily_Screen_Time}<br>
 					<b>Sleep Quality:</b> ${d.Sleep_Quality}<br>
@@ -325,41 +349,43 @@ function createScatter(container, data) {
 			).style("left", event.pageX + 15 + "px")
 			 .style("top", event.pageY - 20 + "px");
 		})
-		.on("mouseout", () => {
+		.on("mouseout", (event) => {
+			d3.select(event.currentTarget)
+				.transition()
+				.duration(200)
+				.attr("r", 5)
+				.attr("opacity", 0.85)
+				.attr("stroke-width", 0.1);
 			tooltip.style("opacity", 0);
 		});
 
-	// color legend
+	// color bar legend
 	const legend = svg.append("g")
 		.attr("class", "legend")
 		.attr("transform", `translate(${SCATTER_CHART_WIDTH * 0.70}, ${SCATTER_CHART_HEIGHT * 0.15})`);
 
-	// 更新圖例（保持原有格式，添加動態效果）
 	function updateLegend(field) {
-		// 清除舊圖例內容
 		legend.selectAll("*").remove();
-		
-		// 圖例標題（保持原有位置和格式）
+
+		// legend title
 		legend.append("text")
 			.attr("x", 50)
 			.attr("y", -8)
 			.style("font-size", "12px")
 			.text(field.replace(/_/g, " "))
-			.style("opacity", 0)  // 初始透明
-			.transition()         // 添加淡入動畫
+			.style("opacity", 0)
+			.transition()
 			.duration(300)
 			.style("opacity", 1);
-		
+
+		// box
 		const boxSize = 15;
 		const boxPadding = 1;
-		const levels = d3.range(1, 11);
-		
-		// 顏色方塊容器
+		const levels = d3.range(1, 11); // 1–10
 		const boxGroup = legend.append("g")
 			.attr("transform", "translate(0, 0)")
-			.style("opacity", 0);  // 初始透明
-		
-		// 顏色方塊（逐個淡入）
+			.style("opacity", 0);
+
 		boxGroup.selectAll("rect")
 			.data(levels)
 			.join("rect")
@@ -368,18 +394,17 @@ function createScatter(container, data) {
 			.attr("width", boxSize)
 			.attr("height", 12)
 			.attr("fill", d => colorScale(d))
-			.style("opacity", 0)  // 每個方塊初始透明
-			.transition()         // 逐個淡入
+			.style("opacity", 0)
+			.transition()
 			.duration(150)
 			.delay((d, i) => i * 30)
 			.style("opacity", 1);
-		
-		// 刻度標籤容器
+
+		// tick labels
 		const labelGroup = legend.append("g")
 			.attr("transform", "translate(0, 20)")
-			.style("opacity", 0);  // 初始透明
-		
-		// 刻度標籤（逐個淡入）
+			.style("opacity", 0);
+
 		labelGroup.selectAll("text")
 			.data(levels)
 			.join("text")
@@ -388,17 +413,16 @@ function createScatter(container, data) {
 			.attr("text-anchor", "middle")
 			.style("font-size", "10px")
 			.text(d => d)
-			.style("opacity", 0)  // 每個標籤初始透明
-			.transition()         // 逐個淡入
+			.style("opacity", 0)
+			.transition()
 			.duration(150)
-			.delay((d, i) => i * 30 + 100)  // 比顏色方塊稍晚
+			.delay((d, i) => i * 30 + 100)
 			.style("opacity", 1);
-		
-		// 容器淡入
+
 		boxGroup.transition()
 			.duration(200)
 			.style("opacity", 1);
-		
+
 		labelGroup.transition()
 			.duration(200)
 			.delay(50)
@@ -417,22 +441,21 @@ function createScatter(container, data) {
 				.range(["#1a9850", "#ebc45b", "#d73027"]);
 		}
 
+		// update dot
 		dots.transition()
 			.duration(500)
 			.attr("fill", d => colorScale(d[field]));
 
 		updateLegend(field);
-	} // TODO: add transition for text and color
+	}
 
 	// initial legend (Stress)
 	update("Stress_Level");
 	updateLegend("Stress_Level");
 
-	return { update, dots };
+	return { update };
 }
 
-// TODO: bubble chart
-// bubble grid chart
 // bubble grid chart
 function createBubbleGrid(container, data) {
 	const margin = createMargins(BUBBLE_CHART_WIDTH, BUBBLE_CHART_HEIGHT);
@@ -447,37 +470,26 @@ function createBubbleGrid(container, data) {
 	const plotWidth = BUBBLE_CHART_WIDTH - margin.left - margin.right;
 	const plotHeight = BUBBLE_CHART_HEIGHT - margin.top - margin.bottom;
 	
-	// 计算可能的 x 和 y 值范围
 	const xValues = [0, 1, 2, 3, 4, 5, 6, 7]; // Exercise Frequency: 0-7 days
 	const yValues = d3.range(0, 10, 1); // Days Without Social Media: 0-9 days
 	
 	const xScale = d3.scaleBand()
-		.domain(xValues)
-		.range([0, plotWidth])
-		.padding(0.1);
-	
+		.domain(xValues).range([0, plotWidth]).padding(0.1);
 	const yScale = d3.scaleBand()
-		.domain(yValues)
-		.range([plotHeight, 0])
-		.padding(0.1);
+		.domain(yValues).range([plotHeight, 0]).padding(0.1);
+	const sizeScale = d3.scaleSqrt().domain([0, 20]).range([5, 30]);
 	
-	// 气泡大小比例尺
-	const sizeScale = d3.scaleSqrt()
-		.domain([0, 20]) // 假设最大数量为 20
-		.range([8, 40]);
-	
-	// 默认颜色比例尺 (Stress)
-	let colorScale = d3.scaleLinear()
-		.domain([1, 6, 10])
+	// default color scale (Stress)
+	let colorScale = d3.scaleLinear().domain([1, 6, 10])
 		.range(["#1a9850", "#ebc45b", "#d73027"]);
 	
-	// tooltip
+	// tooltips
 	const tooltip = d3.select("body")
 		.append("div")
 		.attr("class", "tooltip")
 		.style("opacity", 0);
 	
-	// 标题和标签
+	// title and labels
 	svg.append("text")
 		.attr("x", BUBBLE_CHART_WIDTH / 2)
 		.attr("y", BUBBLE_CHART_HEIGHT * 0.05)
@@ -500,7 +512,7 @@ function createBubbleGrid(container, data) {
 		.style("font-size", "16px")
 		.text("Days Without Social Media");
 	
-	// 绘制坐标轴
+	// draw axes
 	inner.append("g")
 		.attr("transform", `translate(0,${plotHeight})`)
 		.call(d3.axisBottom(xScale).tickSizeOuter(0))
@@ -510,18 +522,18 @@ function createBubbleGrid(container, data) {
 		.call(d3.axisLeft(yScale).tickSizeOuter(0))
 		.style("font-size", "12px");
 	
-	// 网格线
+	// grid lines
 	inner.selectAll(".horizontal-grid")
-		.data(yValues.slice(1))
+		.data(yValues.slice(0))
 		.enter().append("line")
 		.attr("class", "horizontal-grid")
-		.attr("x1", 0)
+		.attr("x1", 2)
 		.attr("x2", plotWidth)
 		.attr("y1", d => yScale(d))
 		.attr("y2", d => yScale(d))
 		.attr("stroke", "#eee")
 		.attr("stroke-width", 1);
-	
+
 	inner.selectAll(".vertical-grid")
 		.data(xValues.slice(1))
 		.enter().append("line")
@@ -529,11 +541,11 @@ function createBubbleGrid(container, data) {
 		.attr("x1", d => xScale(d))
 		.attr("x2", d => xScale(d))
 		.attr("y1", 0)
-		.attr("y2", plotHeight)
+		.attr("y2", plotHeight - 2)
 		.attr("stroke", "#eee")
 		.attr("stroke-width", 1);
 	
-	// 聚合数据：计算每个组合的数据点数量和平均压力/快乐指数
+	// dots
 	function aggregateData(data, colorField) {
 		const grouped = d3.group(data, 
 			d => d.Exercise_Frequency, 
@@ -552,23 +564,23 @@ function createBubbleGrid(container, data) {
 					y: +yVal,
 					count: count,
 					avgValue: avgValue || 0,
-					points: points // 保留原始数据点用于 tooltip
+					points: points
 				});
 			}
 		}
 		
-		// 更新 sizeScale 的 domain
+		// update sizeScale domain
 		const maxCount = d3.max(aggregatedData, d => d.count);
 		sizeScale.domain([0, maxCount]);
 		
 		return aggregatedData;
 	}
 	
-	// 初始聚合数据（使用 Stress Level）
+	// merged data（Stress）
 	let currentColorField = "Stress_Level";
 	let aggregatedData = aggregateData(data, currentColorField);
 	
-	// 绘制气泡
+	// bubbbles
 	let bubbles = inner.selectAll(".bubble")
 		.data(aggregatedData)
 		.join("circle")
@@ -582,14 +594,12 @@ function createBubbleGrid(container, data) {
 		.attr("stroke-width", 1.5)
 		.style("cursor", "pointer")
 		.on("mouseover", (event, d) => {
-			// 高亮当前气泡
-			d3.select(event.currentTarget)
+			d3.select(event.currentTarget).raise()
 				.transition()
 				.duration(200)
 				.attr("opacity", 1)
 				.attr("stroke-width", 2.5);
-			
-			// 显示 tooltip
+			//tooltip
 			tooltip.style("opacity", 1).html(
 				`<b>Exercise Frequency:</b> ${d.x} days/week<br>
 				 <b>Days Without Social Media:</b> ${d.y} days<br>
@@ -599,33 +609,27 @@ function createBubbleGrid(container, data) {
 			 .style("top", (event.pageY - 20) + "px");
 		})
 		.on("mouseout", (event) => {
-			// 恢复气泡样式
 			d3.select(event.currentTarget)
 				.transition()
 				.duration(200)
 				.attr("opacity", 0.8)
 				.attr("stroke-width", 1.5);
-			
 			tooltip.style("opacity", 0);
 		})
 		.on("click", (event, d) => {
-			// 可选：点击气泡时显示详细信息
+			// TODO: show the box plot of stress/happiness distribution
 			console.log("Selected grid cell:", d);
 		});
-	
-	// 注意：这里移除了创建数字标签的代码
-	
-	// 图例
+		
+	// color bar legend
 	const legend = svg.append("g")
 		.attr("class", "legend")
-		.attr("transform", `translate(${BUBBLE_CHART_WIDTH * 0.70}, ${BUBBLE_CHART_HEIGHT * 0.15})`);
-	
-	
-	// 更新圖例（保持原有格式，添加動態效果）
+		.attr("transform", `translate(${SCATTER_CHART_WIDTH * 0.70}, ${SCATTER_CHART_HEIGHT * 0.15})`);
+
 	function updateLegend(field) {
 		legend.selectAll("*").remove();
-		
-		// 圖例標題（保持原有位置和格式）
+
+		// legend title
 		legend.append("text")
 			.attr("x", 50)
 			.attr("y", -8)
@@ -635,132 +639,77 @@ function createBubbleGrid(container, data) {
 			.transition()
 			.duration(300)
 			.style("opacity", 1);
-		
-		const boxSize = 15;
-		const boxPadding = 1;
-		const levels = d3.range(1, 11);
-		
-		// 顏色方塊容器
-		const boxGroup = legend.append("g")
-			.attr("transform", "translate(0, 0)")
-			.style("opacity", 0);
-		
-		// 顏色方塊（逐個淡入）
-		boxGroup.selectAll("rect")
-			.data(levels)
-			.join("rect")
-			.attr("x", (d, i) => i * (boxSize + boxPadding))
+
+		const width = 160;
+		const height = 12;
+		// create gradient id
+		const gradientId = "legend-gradient-" + field;
+
+		let defs = svg.select("defs");
+		if (defs.empty()) defs = svg.append("defs");
+		defs.select("#" + gradientId).remove();
+
+		const gradient = defs.append("linearGradient")
+			.attr("id", gradientId)
+			.attr("x1", "0%")
+			.attr("y1", "0%")
+			.attr("x2", "100%")
+			.attr("y2", "0%");
+
+		let domain = colorScale.domain();
+		let min = domain[0], mid = domain[1], max = domain[2];
+
+		gradient.append("stop")
+			.attr("offset", "0%")
+			.attr("stop-color", colorScale(min));
+
+		gradient.append("stop")
+			.attr("offset", "60%")
+			.attr("stop-color", colorScale(mid));
+
+		gradient.append("stop")
+			.attr("offset", "100%")
+			.attr("stop-color", colorScale(max));
+
+		// draw gradient bar
+		legend.append("rect")
+			.attr("x", 0)
 			.attr("y", 0)
-			.attr("width", boxSize)
-			.attr("height", 12)
-			.attr("fill", d => colorScale(d))
+			.attr("width", width)
+			.attr("height", height)
+			.style("fill", `url(#${gradientId})`)
 			.style("opacity", 0)
 			.transition()
-			.duration(150)
-			.delay((d, i) => i * 30)
+			.duration(300)
 			.style("opacity", 1);
-		
-		// 刻度標籤容器
+
+		// tick labels (1 and 10)
 		const labelGroup = legend.append("g")
 			.attr("transform", "translate(0, 20)")
 			.style("opacity", 0);
-		
-		// 刻度標籤（逐個淡入）
-		labelGroup.selectAll("text")
-			.data(levels)
-			.join("text")
-			.attr("x", (d, i) => i * (boxSize + boxPadding) + boxSize / 2)
+
+		labelGroup.append("text")
+			.attr("x", 0)
 			.attr("y", 0)
-			.attr("text-anchor", "middle")
-			.style("font-size", "10px")
-			.text(d => d)
-			.style("opacity", 0)
-			.transition()
-			.duration(150)
-			.delay((d, i) => i * 30 + 100)
-			.style("opacity", 1);
-		
-		// 容器淡入
-		boxGroup.transition()
-			.duration(200)
-			.style("opacity", 1);
-		
+			.text(min)
+			.style("font-size", "10px");
+
+		labelGroup.append("text")
+			.attr("x", width)
+			.attr("y", 0)
+			.attr("text-anchor", "end")
+			.text(max)
+			.style("font-size", "10px");
+
 		labelGroup.transition()
-			.duration(200)
+			.duration(250)
 			.delay(50)
 			.style("opacity", 1);
-		
-		// 大小圖例（保持原有格式）
-		const sizeLegend = svg.append("g")
-			.attr("class", "size-legend")
-			.attr("transform", `translate(${BUBBLE_CHART_WIDTH * 0.70}, ${BUBBLE_CHART_HEIGHT * 0.45})`)
-			.style("opacity", 0);
-		
-		// 大小圖例標題
-		sizeLegend.append("text")
-			.attr("x", 50)
-			.attr("y", -8)
-			.style("font-size", "12px")
-			.text("Number of People")
-			.style("opacity", 0)
-			.transition()
-			.duration(300)
-			.delay(200)
-			.style("opacity", 1);
-		
-		// 示例氣泡尺寸
-		const exampleSizes = [5, 10, 15, 20];
-		const sizeGroup = sizeLegend.append("g")
-			.attr("transform", "translate(0, 15)")
-			.style("opacity", 0);
-		
-		// 繪製示例氣泡（逐個淡入和放大）
-		const exampleBubbles = sizeGroup.selectAll(".example-bubble")
-			.data(exampleSizes)
-			.join("circle")
-			.attr("class", "example-bubble")
-			.attr("cx", (d, i) => i * 45 + sizeScale(d))
-			.attr("cy", 10)
-			.attr("r", 0)  // 初始半徑為 0
-			.attr("fill", "#4A90E2")
-			.attr("opacity", 0.6)
-			.attr("stroke", "#333")
-			.attr("stroke-width", 1);
-		
-		// 氣泡放大動畫
-		exampleBubbles.transition()
-			.duration(400)
-			.delay((d, i) => i * 100 + 300)
-			.attr("r", d => sizeScale(d));
-		
-		// 添加數值標籤
-		const sizeLabels = sizeGroup.selectAll(".size-label")
-			.data(exampleSizes)
-			.join("text")
-			.attr("class", "size-label")
-			.attr("x", (d, i) => i * 45 + sizeScale(d))
-			.attr("y", 30)
-			.attr("text-anchor", "middle")
-			.style("font-size", "10px")
-			.style("opacity", 0)
-			.text(d => d)
-			.transition()
-			.duration(200)
-			.delay((d, i) => i * 100 + 350)
-			.style("opacity", 1);
-		
-		// 大小圖例容器淡入
-		sizeGroup.transition()
-			.duration(300)
-			.delay(250)
-			.style("opacity", 1);
 	}
-	
-	// 更新函数
-	function update(field) {
+
+	// update
+	function update(field) { // update colorScale
 		currentColorField = field;
-		
-		// 更新颜色比例尺
 		if (field === "Happiness_Index") {
 			colorScale = d3.scaleLinear()
 				.domain([1, 6, 10])
@@ -770,24 +719,19 @@ function createBubbleGrid(container, data) {
 				.domain([1, 6, 10])
 				.range(["#1a9850", "#ebc45b", "#d73027"]);
 		}
-		
-		// 重新聚合数据
 		aggregatedData = aggregateData(data, field);
 		
-		// 更新气泡（不需要更新标签了）
+		// update bubble
 		bubbles.data(aggregatedData)
 			.transition()
 			.duration(500)
 			.attr("r", d => sizeScale(d.count))
 			.attr("fill", d => colorScale(d.avgValue));
-		
-		// 注意：这里也移除了更新标签的代码
-		
-		// 更新图例
+
 		updateLegend(field);
 	}
-	
-	// 初始图例
+
+	// initial legend (Stress)
 	update("Stress_Level");
 	updateLegend("Stress_Level");
 	
