@@ -14,6 +14,14 @@ function createMargins(width, height) {
 	};
 }
 
+let activeFilters = {
+	Gender: [],
+	Social_Media_Platform: [],
+	Scatter: [],
+	Bubble: []
+};
+
+
 // load data
 d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawData => {
 	const data = rawData.map((d, i) => ({
@@ -49,6 +57,7 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 	d3.select("#groupSelector").on("change", function () {
 		const groupBy = this.value;
 		barCharts.forEach(chart => chart.update(groupBy));
+		updateFilterOptions(groupBy);
 	});
 
 	// init scatter chart
@@ -61,6 +70,51 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		scatterChart.update(field);
 		bubbleChart.update(field);
 	});
+
+	// filter for bar charts
+	function updateFilterOptions(groupBy) {
+		const filterContainer = d3.select("#filterContainer");
+		filterContainer.html("");
+		if (groupBy === "") {
+			filterContainer.style("display", "none");
+			return; 
+		}
+		filterContainer.style("display", "flex");
+
+		const uniqueValues = [...new Set(data.map(d => d[groupBy]))].sort();
+		const filterOptions = filterContainer.selectAll(".filter-option")
+			.data(uniqueValues)
+			.enter()
+			.append("div")
+			.attr("class", `filter-option filter-label`);
+		
+		filterOptions.append("input")
+			.attr("type", "checkbox")
+			.attr("id", d => `filter-${groupBy}-${d}`)
+			.attr("value", d => d)
+			.attr("checked", true) // all for default
+			.on("change", function(event, d) {
+				handleFilterChange(groupBy, d, this.checked);
+			});
+		filterOptions.append("span").text(d => d);
+		activeFilters[groupBy] = [...uniqueValues];
+		barCharts.forEach(chart => chart.update(groupBy));
+	}
+
+	function handleFilterChange(groupBy, value, isChecked) {
+		if (isChecked) {
+			if (!activeFilters[groupBy].includes(value)) {
+				activeFilters[groupBy].push(value);
+			}
+		} else {
+			activeFilters[groupBy] = activeFilters[groupBy].filter(v => v !== value);
+		}
+		//update
+		const currentGroupBy = d3.select("#groupSelector").node().value;
+		if (currentGroupBy === groupBy) {
+			barCharts.forEach(chart => chart.update(groupBy));
+		}
+	}
 });
 
 // bar charts
@@ -101,6 +155,10 @@ function createBarChart(container, data, field, bin, isInterval) {
 
 	// update
 	function update(groupBy = "") {
+		let filteredData = data;
+		if (groupBy !== "" && activeFilters[groupBy].length > 0) {
+            filteredData = data.filter(d => activeFilters[groupBy].includes(d[groupBy]));
+        }
 		let barData;
 		let groups;
 
@@ -109,7 +167,7 @@ function createBarChart(container, data, field, bin, isInterval) {
 			colorScale = d3.scaleOrdinal().range(socialAppColors);
 			// interval bins
 			const rolled = d3.rollups(
-				data,
+				filteredData,
 				v => v.length,
 				d => isInterval ? Math.round(d[field] / bin) * bin : d[field]
 			).sort((a, b) => d3.ascending(+a[0], +b[0]));
@@ -131,10 +189,10 @@ function createBarChart(container, data, field, bin, isInterval) {
 					groups = ["Male", "Female", "Other"];
 			} else {
 				colorScale = d3.scaleOrdinal().range(socialAppColors);
-				groups = [...new Set(data.map(d => d[groupBy]))].sort();
+				groups = [...new Set(filteredData.map(d => d[groupBy]))].sort();
 			}
 			// stacked bar chart with grouping
-			const grouped = d3.group(data, d => isInterval ? Math.round(d[field] / bin) * bin : d[field]);
+			const grouped = d3.group(filteredData, d => isInterval ? Math.round(d[field] / bin) * bin : d[field]);
 			
 			barData = Array.from(grouped, ([key, values]) => {
 				const groupCounts = d3.rollups(values, v => v.length, d => d[groupBy]);
@@ -301,7 +359,7 @@ function createScatter(container, data) {
 
 	// grid lines
 	inner.selectAll(".horizontal-grid")
-		.data(yScale.ticks(10))
+		.data(yScale.ticks(10).filter(d => d > 1))
 		.enter().append("line")
 		.attr("class", "horizontal-grid")
 		.attr("x1", 1)
@@ -312,7 +370,7 @@ function createScatter(container, data) {
 		.attr("stroke-width", 1);
 		
 	inner.selectAll(".vertical-grid")
-		.data(xScale.ticks(10))
+		.data(xScale.ticks(10).filter(d => d > 0))
 		.enter().append("line")
 		.attr("class", "vertical-grid")
 		.attr("x1", d => xScale(d))
@@ -320,7 +378,7 @@ function createScatter(container, data) {
 		.attr("y1", -5)
 		.attr("y2", plotHeight - 2)
 		.attr("stroke", "#eee")
-		.attr("stroke-width", 1);
+		.attr("stroke-width", 2);
 
 	// dots
 	let dots = inner.selectAll("circle")
@@ -601,8 +659,8 @@ function createBubbleGrid(container, data) {
 				.attr("stroke-width", 2.5);
 			//tooltip
 			tooltip.style("opacity", 1).html(
-				`<b>Exercise Frequency:</b> ${d.x} days/week<br>
-				 <b>Days Without Social Media:</b> ${d.y} days<br>
+				`<b>Exercise Frequency:</b> ${d.x}<br>
+				 <b>Days Without Social Media:</b> ${d.y}<br>
 				 <b>Number of People:</b> ${d.count}<br>
 				 <b>Avg ${currentColorField.replace(/_/g, " ")}:</b> ${d.avgValue.toFixed(2)}`
 			).style("left", (event.pageX + 15) + "px")

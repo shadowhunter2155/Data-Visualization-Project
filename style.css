@@ -11,7 +11,7 @@ h2 {
 }
 
 h3 {
-	margin-top: 10px;
+	margin-top: 5px;
 	margin-bottom: 5px;
 	color: #333;
 }
@@ -29,8 +29,8 @@ h3 {
 
 .upper {
 	border: 1px solid #ccc;
-	margin: 20px;
-	margin-bottom: 30px;
+	margin: 5px;
+	margin-bottom: 10px;
 	width: 700px;
 	height: 490px;
 	background-color: white;
@@ -54,6 +54,51 @@ h3 {
 	font-size: 13px;
 	opacity: 0;
 	transition: opacity 0.1s ease-in-out;
+}
+
+#filterContainer {
+    flex-wrap: wrap;
+    width: auto;
+    margin-left: 20px;
+}
+
+.filter-controls {
+	padding: 10px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	background-color: #f5f5f5;
+	border-radius: 5px;
+	width: 1200px;
+}
+
+.filter-options {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 15px;
+	padding: 10px;
+	background-color: white;
+	border-radius: 5px;
+	border: 1px solid #ddd;
+}
+
+.filter-option {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.filter-option input[type="checkbox"] {
+	cursor: pointer;
+}
+
+.filter-option input[type="checkbox"]:checked + span {
+	font-weight: bold;
+}
+
+.filter-label {
+	color: #1e5ba0;
 }
 
 .brush .selection {
