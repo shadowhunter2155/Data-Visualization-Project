@@ -1,5 +1,5 @@
-var BAR_CHART_WIDTH = 250;
-var BAR_CHART_HEIGHT = 200;
+import BarChart from './BarChart.js';
+
 var SCATTER_CHART_WIDTH = 700;
 var SCATTER_CHART_HEIGHT = 490;
 var BUBBLE_CHART_WIDTH = 700;
@@ -50,7 +50,14 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 	// init bar charts
 	let barCharts = [];
 	barConfig.forEach(cfg => {
-		let chart = createBarChart("#" + cfg.id, data, cfg.field, cfg.bin_width, cfg.isInterval);
+		const chart = new BarChart(
+			"#" + cfg.id,
+			data,
+			cfg.field,
+			cfg.bin_width,
+			cfg.isInterval,
+			activeFilters
+		);
 		barCharts.push(chart);
 	});
 	// dropdown change listener
@@ -117,188 +124,7 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 	}
 });
 
-// bar charts
-function createBarChart(container, data, field, bin, isInterval) {
-	const margin = createMargins(BAR_CHART_WIDTH, BAR_CHART_HEIGHT);
-	// create svg
-	const svg = d3.select(container)
-		.append("svg")
-		.attr("width", BAR_CHART_WIDTH)
-		.attr("height", BAR_CHART_HEIGHT);
 
-	const inner = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-	const plotWidth = BAR_CHART_WIDTH - margin.left - margin.right;
-	const plotHeight = BAR_CHART_HEIGHT - margin.top - margin.bottom;
-	const xScale = d3.scaleLinear().range([0, plotWidth]);
-	const yScale = d3.scaleLinear().range([plotHeight, 0]);
-	const xAxisG = inner.append("g").attr("transform", `translate(0,${plotHeight})`);
-	const yAxisG = inner.append("g");
-	const genderColors = { "Male": "#4A90E2", "Female": "#FF69B4", "Other": "#9E9E9E" };
-	const socialAppColors = [
-		"#1f77b4", "#ff7f0e", "#2ca02c",
-		"#d62728", "#9467bd", "#8c564b" ];
-	let colorScale = d3.scaleOrdinal().range(socialAppColors);
-
-	// tooltips
-	const tooltip = d3.select("body")
-		.append("div")
-		.attr("class", "tooltip")
-		.style("opacity", 0);
-
-	// title
-	svg.append("text")
-		.attr("x", BAR_CHART_WIDTH / 2)
-		.attr("y", 14)
-		.attr("text-anchor", "middle")
-		.style("font-size", "12px")
-		.text(field.replace(/_/g, " "));
-
-	// update
-	function update(groupBy = "") {
-		let filteredData = data;
-		if (groupBy !== "" && activeFilters[groupBy].length > 0) {
-            filteredData = data.filter(d => activeFilters[groupBy].includes(d[groupBy]));
-        }
-		let barData;
-		let groups;
-
-		if (groupBy === "") {
-			// color
-			colorScale = d3.scaleOrdinal().range(socialAppColors);
-			// interval bins
-			const rolled = d3.rollups(
-				filteredData,
-				v => v.length,
-				d => isInterval ? Math.round(d[field] / bin) * bin : d[field]
-			).sort((a, b) => d3.ascending(+a[0], +b[0]));
-
-			barData = rolled.map(([key, value]) => ({ 
-				key, 
-				values: [{ group: "All", value }] 
-			}));
-			groups = ["All"];
-		} else {
-			// color
-			if (groupBy === "Gender") {
-				colorScale = d3.scaleOrdinal().domain(["Male", "Female", "Other"])
-					.range([
-						genderColors.Male,
-						genderColors.Female,
-						genderColors.Other
-					]);
-					groups = ["Male", "Female", "Other"];
-			} else {
-				colorScale = d3.scaleOrdinal().range(socialAppColors);
-				groups = [...new Set(filteredData.map(d => d[groupBy]))].sort();
-			}
-			// stacked bar chart with grouping
-			const grouped = d3.group(filteredData, d => isInterval ? Math.round(d[field] / bin) * bin : d[field]);
-			
-			barData = Array.from(grouped, ([key, values]) => {
-				const groupCounts = d3.rollups(values, v => v.length, d => d[groupBy]);
-				const valuesByGroup = groupCounts.map(([group, value]) => ({ group, value }));
-				return { key, values: valuesByGroup };
-			}).sort((a, b) => d3.ascending(+a.key, +b.key));
-		}
-
-		// scales
-		const keys = barData.map(d => +d.key);
-		const minKey = -0.1;
-		const maxKey = d3.max(keys);
-
-		xScale.domain([minKey - bin/2, maxKey + bin/2]);
-
-		const barWidth = Math.min(
-			plotWidth / barData.length * 0.95,
-			(plotWidth / (maxKey - minKey + bin)) * bin * 0.95
-		);
-
-		// calculate stack data for y-scale domain
-		const stackData = barData.map(d => {
-			const obj = { key: d.key };
-			d.values.forEach(v => {
-				obj[v.group] = v.value;
-			});
-			return obj;
-		});
-
-		const stacked = d3.stack()
-			.keys(groups)
-			.value((d, key) => d[key] || 0)
-			.order(d3.stackOrderNone)
-			.offset(d3.stackOffsetNone)(stackData);
-
-		yScale.domain([0, d3.max(stacked, layer => d3.max(layer, d => d[1]))*1.05]).nice();
-		// axes
-		xAxisG.call(d3.axisBottom(xScale).tickSizeOuter(0));
-		yAxisG.call(d3.axisLeft(yScale).ticks(6).tickSizeOuter(0));
-
-		// color scale domain
-		colorScale.domain(groups);
-
-		// draw
-		const layer = inner.selectAll(".layer")
-			.data(stacked, d => d.key);
-
-		layer.enter()
-			.append("g")
-			.attr("class", "layer")
-			.attr("fill", d => colorScale(d.key))
-			.selectAll("rect")
-			.data(d => d)
-			.join("rect")
-			.attr("x", d => xScale(+d.data.key) - barWidth/2)
-			.attr("width", barWidth)
-			.attr("y", plotHeight)
-			.attr("height", 0)
-			.on("mouseover", (event, d) => { //tooltips
-				const groupName = d3.select(event.currentTarget.parentNode).datum().key;
-				const count = d[1] - d[0];
-				let valueText;
-				
-				if (isInterval) {
-					const start = +d.data.key - bin / 2;
-					const end = start + bin;
-					valueText = `<b>Value:</b> ${start}-${end}`;
-				} else {
-					valueText = `<b>Value:</b> ${d.data.key}`;
-				}
-				
-				let tooltipContent = `<b>Count:</b> ${count}<br>${valueText}`;
-
-				if (groupBy !== "") {
-					tooltipContent += `<br><b>Group:</b> ${groupName}`;
-				}
-				
-				tooltip.style("opacity", 1)
-					.html(tooltipContent)
-					.style("left", (event.pageX + 15) + "px")
-					.style("top", (event.pageY - 20) + "px");
-			})
-			.on("mouseout", () => {
-				tooltip.style("opacity", 0);
-			});
-
-		inner.selectAll(".layer")
-			.data(stacked, d => d.key)
-			.attr("fill", d => colorScale(d.key))
-			.selectAll("rect")
-			.data(d => d)
-			.transition()
-			.duration(600)
-			.attr("x", d => xScale(+d.data.key) - barWidth/2)
-			.attr("width", barWidth)
-			.attr("y", d => yScale(d[1]))
-			.attr("height", d => yScale(d[0]) - yScale(d[1]));
-			
-		layer.exit().remove();
-	}
-
-	// init render
-	update("");
-
-	return { update };
-}
 
 // scatter plot (Daily Screen Time vs Sleep Quality)
 function createScatter(container, data) {
@@ -318,8 +144,8 @@ function createScatter(container, data) {
 		.domain([1, 10]).range([plotHeight, 0]).nice();
 
 	// default color scale (Stress)
-	let colorScale = d3.scaleLinear().domain([1, 6, 10])
-		.range(["#1a9850", "#ebc45b", "#d73027"]);
+	let colorScale = d3.scaleLinear().domain([1, 3, 6, 8, 10])
+		.range(["#0f7a3d", "#1a9850", "#ebc45b", "#d73027", "#ac1b13"]);
 
 	// tooltips
 	const tooltip = d3.select("body")
@@ -395,7 +221,7 @@ function createScatter(container, data) {
 			d3.select(event.currentTarget).raise()
 				.transition()
 				.duration(200)
-				.attr("r", 6)
+				.attr("r", 7)
 				.attr("opacity", 1)
 				.attr("stroke-width", 1);
 			// tooltip
@@ -490,13 +316,11 @@ function createScatter(container, data) {
 	// update
 	function update(field) { // update colorScale
 		if (field === "Happiness_Index") {
-			colorScale = d3.scaleLinear()
-				.domain([1, 6, 10])
-				.range(["#d73027", "#ebc45b", "#1a9850"]);
+			colorScale = d3.scaleLinear().domain([1, 3, 6, 8, 10])
+				.range(["#ac1b13", "#d73027", "#ebc45b", "#1a9850", "#0f7a3d"]);
 		} else if (field === "Stress_Level") {
-			colorScale = d3.scaleLinear()
-				.domain([1, 6, 10])
-				.range(["#1a9850", "#ebc45b", "#d73027"]);
+			colorScale = d3.scaleLinear().domain([1, 3, 6, 8, 10])
+				.range(["#0f7a3d", "#1a9850", "#ebc45b", "#d73027", "#ac1b13"]);
 		}
 
 		// update dot
@@ -535,7 +359,7 @@ function createBubbleGrid(container, data) {
 		.domain(xValues).range([0, plotWidth]).padding(0.1);
 	const yScale = d3.scaleBand()
 		.domain(yValues).range([plotHeight, 0]).padding(0.1);
-	const sizeScale = d3.scaleSqrt().domain([0, 20]).range([5, 30]);
+	const sizeScale = d3.scaleSqrt().domain([0, 20]).range([2, 30]);
 	
 	// default color scale (Stress)
 	let colorScale = d3.scaleLinear().domain([1, 6, 10])
@@ -715,19 +539,11 @@ function createBubbleGrid(container, data) {
 			.attr("y2", "0%");
 
 		let domain = colorScale.domain();
-		let min = domain[0], mid = domain[1], max = domain[2];
-
-		gradient.append("stop")
-			.attr("offset", "0%")
-			.attr("stop-color", colorScale(min));
-
-		gradient.append("stop")
-			.attr("offset", "60%")
-			.attr("stop-color", colorScale(mid));
-
-		gradient.append("stop")
-			.attr("offset", "100%")
-			.attr("stop-color", colorScale(max));
+		gradient.append("stop").attr("offset", "0%").attr("stop-color", colorScale(domain[0]));
+		gradient.append("stop").attr("offset", "20%").attr("stop-color", colorScale(domain[1]));
+		gradient.append("stop").attr("offset", "60%").attr("stop-color", colorScale(domain[2]));
+		gradient.append("stop").attr("offset", "80%").attr("stop-color", colorScale(domain[3]));
+		gradient.append("stop").attr("offset", "100%").attr("stop-color", colorScale(domain[4]));
 
 		// draw gradient bar
 		legend.append("rect")
@@ -749,14 +565,14 @@ function createBubbleGrid(container, data) {
 		labelGroup.append("text")
 			.attr("x", 0)
 			.attr("y", 0)
-			.text(min)
+			.text("1")
 			.style("font-size", "10px");
 
 		labelGroup.append("text")
 			.attr("x", width)
 			.attr("y", 0)
 			.attr("text-anchor", "end")
-			.text(max)
+			.text("10")
 			.style("font-size", "10px");
 
 		labelGroup.transition()
@@ -769,13 +585,11 @@ function createBubbleGrid(container, data) {
 	function update(field) { // update colorScale
 		currentColorField = field;
 		if (field === "Happiness_Index") {
-			colorScale = d3.scaleLinear()
-				.domain([1, 6, 10])
-				.range(["#d73027", "#ebc45b", "#1a9850"]);
+			colorScale = d3.scaleLinear().domain([1, 3, 6, 8, 10])
+				.range(["#ac1b13", "#d73027", "#ebc45b", "#1a9850", "#0f7a3d"]);
 		} else if (field === "Stress_Level") {
-			colorScale = d3.scaleLinear()
-				.domain([1, 6, 10])
-				.range(["#1a9850", "#ebc45b", "#d73027"]);
+			colorScale = d3.scaleLinear().domain([1, 3, 6, 8, 10])
+				.range(["#0f7a3d", "#1a9850", "#ebc45b", "#d73027", "#ac1b13"]);
 		}
 		aggregatedData = aggregateData(data, field);
 		
