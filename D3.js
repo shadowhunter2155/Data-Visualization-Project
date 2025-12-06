@@ -2,27 +2,13 @@ import BarChart from './BarChart.js';
 import BubbleGrid from './BubbleGrid.js';
 import ScatterPlot from './ScatterPlot.js';
 
-var SCATTER_CHART_WIDTH = 700;
-var SCATTER_CHART_HEIGHT = 490;
-var BUBBLE_CHART_WIDTH = 700;
-var BUBBLE_CHART_HEIGHT = 490;
-
-function createMargins(width, height) {
-	return {
-		top: height * 0.12,
-		right: width * 0.12,
-		bottom: height * 0.12,
-		left: width * 0.12
-	};
-}
-
 let activeFilters = {
 	Gender: [],
-	Social_Media_Platform: [],
-	Scatter: [],
-	Bubble: []
+	Social_Media_Platform: []
 };
 
+let selectedData = new Set();
+let charts = {};
 
 // load data
 d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawData => {
@@ -61,6 +47,7 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 			activeFilters
 		);
 		barCharts.push(chart);
+		charts[cfg.id] = chart;
 	});
 	// dropdown change listener
 	d3.select("#groupSelector").on("change", function () {
@@ -72,6 +59,8 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 	// init scatter chart
 	let scatterChart = new ScatterPlot("#scatter", data);
 	let bubbleChart = new BubbleGrid("#bubble", data);
+	charts.scatter = scatterChart;
+	charts.bubble = bubbleChart;
 
 	// dropdown change listener
 	d3.select("#scatterColorSelector").on("change", function () {
@@ -79,6 +68,10 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		scatterChart.update(field);
 		bubbleChart.update(field);
 	});
+
+	d3.select("#clearSelection").on("click", function() {
+    clearSelection();
+});
 
 	// filter for bar charts
 	function updateFilterOptions(groupBy) {
@@ -124,4 +117,25 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 			barCharts.forEach(chart => chart.update(groupBy));
 		}
 	}
+	
+	// linking
+	function syncSelection(selectedIds) {
+		selectedData = new Set(selectedIds);
+		
+		//  update all
+		Object.values(charts).forEach(chart => {
+			if (chart.highlightSelected) {
+				chart.highlightSelected(selectedIds);
+			}
+		});
+	}
+	function clearSelection() {
+		selectedData.clear();
+		Object.values(charts).forEach(chart => {
+			if (chart.clearHighlight) {
+				chart.clearHighlight();
+			}
+		});
+	}
 });
+

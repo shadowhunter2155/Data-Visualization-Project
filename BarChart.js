@@ -37,14 +37,12 @@ export default class BarChart {
 		];
 
 		this.allBins = Array.from(
-			d3.rollup(
-				data,
+			d3.rollup(data,
 				v => v.length,
 				d => this.isInterval
 					? Math.round(d[this.field] / this.binWidth) * this.binWidth
-					: d[this.field]
-			),
-			([key]) => key).sort((a, b) => a - b);
+					: d[this.field]), ([key]) => key)
+			.sort((a, b) => a - b);
 
 		this.svg = d3.select(container).append("svg")
 			.attr("width", this.width).attr("height", this.height);
@@ -78,10 +76,10 @@ export default class BarChart {
 		this.colorScale = d3.scaleOrdinal().range(["#1f77b4"]);
 
 		// tooltip
-        this.tooltip = d3.select("body")
-            .append("div")
-            .attr("class", "tooltip")
-            .style("opacity", 0);
+		this.tooltip = d3.select("body")
+			.append("div")
+			.attr("class", "tooltip")
+			.style("opacity", 0);
 
 		// title
 		this.svg.append("text")
@@ -90,6 +88,15 @@ export default class BarChart {
 			.attr("text-anchor", "middle")
 			.style("font-size", "12px")
 			.text(this.field.replace(/_/g, " "));
+
+		// brush setup
+		this.brush = d3.brushX()
+			.extent([[0, 0], [this.plotWidth, this.plotHeight]])
+			.on("brush end", (event) => this.handleBrush(event));
+		this.inner.append("g")
+			.attr("class", "brush")
+			.call(this.brush);
+		this.inner.select(".brush").lower();
 
 		this.update("");  // initial render
 	}
@@ -140,7 +147,6 @@ export default class BarChart {
 		return { groups, barData };
 	}
 
-
 	// update
 	update(groupBy) {
 		const { groups, barData } = this.prepareData(groupBy);
@@ -166,15 +172,9 @@ export default class BarChart {
 			return obj;
 		});
 
-		const stacked = d3.stack()
-			.keys(groups)
-			.value((d, k) => d[k] || 0)
-			(stackData);
+		const stacked = d3.stack().keys(groups).value((d, k) => d[k] || 0)(stackData);
 
-		this.yScale.domain([
-			0,
-			d3.max(stacked, layer => d3.max(layer, d => d[1])) * 1.05
-		]).nice();
+		this.yScale.domain([0, d3.max(stacked, layer => d3.max(layer, d => d[1])) * 1.05]).nice();
 
 		this.xAxisG.call(d3.axisBottom(this.xScale).tickSizeOuter(0));
 		this.yAxisG.call(d3.axisLeft(this.yScale).ticks(6).tickSizeOuter(0));
@@ -232,5 +232,10 @@ export default class BarChart {
 			.html(html)
 			.style("left", (event.pageX + 15) + "px")
 			.style("top", (event.pageY - 20) + "px");
+	}
+
+	// TODO: brush-and-link
+	handleBrush(event){
+
 	}
 }

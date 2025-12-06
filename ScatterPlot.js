@@ -44,11 +44,31 @@ export default class ScatterPlot {
 			.attr("class", "tooltip")
 			.style("opacity", 0);
 
+		// draw
 		this.drawAxes();
 		this.drawGrid();
 		this.drawDots();
 		this.drawLegend();
-		this.update("Stress_Level"); // initial color field
+
+		// brush setup
+		this.brush = d3.brush()
+			.extent([[0, 0], [this.plotWidth, this.plotHeight]])
+			.on("brush end", (event) => this.handleBrush(event));
+		this.inner.append("g")
+			.attr("class", "brush")
+			.call(this.brush);
+		this.inner.select(".brush").lower();
+
+		this.update("Stress_Level"); // initial color field\
+
+
+		window.addEventListener('selectionChanged', (event) => {
+        this.highlightSelected(event.detail.selectedIds);
+    });
+    
+    window.addEventListener('selectionCleared', () => {
+        this.clearSelection();
+    });
 	}
 
 	drawAxes() {
@@ -107,7 +127,7 @@ export default class ScatterPlot {
 			.attr("y1", -5)
 			.attr("y2", this.plotHeight - 2)
 			.attr("stroke", "#eee")
-			.attr("stroke-width", 2);
+			.attr("stroke-width", 1);
 	}
 
 	drawDots() {
@@ -144,7 +164,6 @@ export default class ScatterPlot {
 		).style("left", event.pageX + 15 + "px")
 		 .style("top", event.pageY - 20 + "px");
 	}
-
 	hideTooltip(event) {
 		d3.select(event.currentTarget)
 			.transition().duration(200)
@@ -207,4 +226,67 @@ export default class ScatterPlot {
 			.style("font-size", "10px")
 			.text(d => d);
 	}
+
+	// TODO: brush
+	handleBrush(event) {
+    if (!event.selection) {
+        // 如果刷取被清除，则清除所有选择
+        this.clearSelection();
+        return;
+    }
+    
+    const [[x0, y0], [x1, y1]] = event.selection;
+    
+    // 将刷取范围转换回数据坐标
+    const xDomain = this.xScale.domain();
+    const yDomain = this.yScale.domain();
+    
+    const selected = this.data.filter(d => {
+        const x = this.xScale(d.Daily_Screen_Time);
+        const y = this.yScale(d.Sleep_Quality);
+        return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+    });
+    
+    // 获取选中数据的ID
+    const selectedIds = selected.map(d => d.id);
+    
+    // 触发全局选择更新
+    this.dispatchSelection(selectedIds);
+    
+    // 本地高亮
+    this.highlightSelected(selectedIds);
+}
+
+// 添加 dispatchSelection 方法（需要与主文件通信）
+dispatchSelection(selectedIds) {
+    // 触发自定义事件，通知其他图表
+    const event = new CustomEvent('selectionChanged', {
+        detail: { selectedIds }
+    });
+    window.dispatchEvent(event);
+}
+
+// 添加 highlightSelected 方法
+highlightSelected(selectedIds) {
+    this.dots
+        .attr('opacity', d => selectedIds.includes(d.id) ? 1 : 0.3)
+        .attr('r', d => selectedIds.includes(d.id) ? 7 : 5)
+        .attr('stroke-width', d => selectedIds.includes(d.id) ? 1.5 : 0.1);
+}
+
+// 添加 clearSelection 方法
+clearSelection() {
+    this.dots
+        .attr('opacity', 0.8)
+        .attr('r', 5)
+        .attr('stroke-width', 0.1);
+    
+    // 清除刷取区域
+    this.inner.select(".brush").call(this.brush.move, null);
+    
+    // 通知其他图表
+    window.dispatchEvent(new CustomEvent('selectionCleared'));
+}
+
+
 }

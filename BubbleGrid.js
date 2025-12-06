@@ -34,26 +34,46 @@ export default class BubbleGrid {
 		this.xValues = [0, 1, 2, 3, 4, 5, 6, 7];
 		this.yValues = d3.range(0, 10, 1);
 
-		this.xScale = d3.scaleBand()
-			.domain(this.xValues).range([0, this.plotWidth]).padding(0.1);
-		this.yScale = d3.scaleBand()
-			.domain(this.yValues).range([this.plotHeight, 0]).padding(0.1);
+		// scales
+		this.xScale = d3.scaleBand().domain(this.xValues).range([0, this.plotWidth]).padding(0.1);
+		this.yScale = d3.scaleBand().domain(this.yValues).range([this.plotHeight, 0]).padding(0.1);
 		this.sizeScale = d3.scaleSqrt().domain([0, 20]).range([2, 30]);
 
+		// default color scale (Stress)
 		this.colorScale = d3.scaleLinear().domain([1, 3, 6, 8, 10])
 			.range(["#0f7a3d", "#1a9850", "#ebc45b", "#d73027", "#ac1b13"]);
 
+		// tooltip
 		this.tooltip = d3.select("body")
 			.append("div")
 			.attr("class", "tooltip")
 			.style("opacity", 0);
 
+		// draw
 		this.drawAxes();
 		this.drawGrid();
 		this.aggregateData();
 		this.drawBubbles();
 		this.drawLegend();
+
+		// brush setup
+		this.brush = d3.brush()
+			.extent([[0, 0], [this.plotWidth, this.plotHeight]])
+			.on("brush end", (event) => this.handleBrush(event));
+		this.inner.append("g")
+			.attr("class", "brush")
+			.call(this.brush);
+		this.inner.select(".brush").lower();
+		
 		this.update(this.currentColorField);
+
+		window.addEventListener('selectionChanged', (event) => {
+        this.highlightSelected(event.detail.selectedIds);
+    });
+    
+    window.addEventListener('selectionCleared', () => {
+        this.clearSelection();
+    });
 	}
 
 	drawAxes() {
@@ -251,4 +271,61 @@ export default class BubbleGrid {
 
 		this.updateLegend(field);
 	}
+
+	// TODO: brush-and-link
+	handleBrush(event) {
+    if (!event.selection) {
+        this.clearSelection();
+        return;
+    }
+    
+    const [[x0, y0], [x1, y1]] = event.selection;
+    
+    // 收集刷取区域内的所有数据点
+    const selectedIds = [];
+    this.aggregatedData.forEach(bubble => {
+        const cx = this.xScale(bubble.x) + this.xScale.bandwidth() / 2;
+        const cy = this.yScale(bubble.y) + this.yScale.bandwidth() / 2;
+        const r = this.sizeScale(bubble.count);
+        
+        // 检查气泡是否在刷取区域内
+        if (cx - r <= x1 && cx + r >= x0 && 
+            cy - r <= y1 && cy + r >= y0) {
+            bubble.points.forEach(point => selectedIds.push(point.id));
+        }
+    });
+    
+    // 触发全局选择更新
+    const eventObj = new CustomEvent('selectionChanged', {
+        detail: { selectedIds: [...new Set(selectedIds)] }
+    });
+    window.dispatchEvent(eventObj);
+    
+    // 本地高亮
+    this.highlightSelected(selectedIds);
+}
+
+highlightSelected(selectedIds) {
+    this.bubbles
+        .attr('opacity', d => {
+            // 检查气泡内是否有选中的数据点
+            const hasSelected = d.points.some(p => selectedIds.includes(p.id));
+            return hasSelected ? 1 : 0.3;
+        })
+        .attr('stroke-width', d => {
+            const hasSelected = d.points.some(p => selectedIds.includes(p.id));
+            return hasSelected ? 2.5 : 1;
+        });
+}
+
+clearSelection() {
+    this.bubbles
+        .attr('opacity', 0.8)
+        .attr('stroke-width', 1);
+    
+    this.inner.select(".brush").call(this.brush.move, null);
+    
+    window.dispatchEvent(new CustomEvent('selectionCleared'));
+}
+
 }
