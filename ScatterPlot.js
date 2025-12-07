@@ -243,10 +243,9 @@ export default class ScatterPlot {
 
 	applySelection(selectedIDs) {
 		this.dots.transition().duration(150)
-			.attr("opacity", d => selectedIDs.size === 0 || selectedIDs.has(d.id) ? 0.8 : 0.1);
+			.attr("opacity", d => selectedIDs.size === 0 || selectedIDs.has(d.id) ? 0.8 : 0.05);
 		if (selectedIDs.size > 0) {
-			this.dots.filter(d => selectedIDs.has(d.id))
-				.raise();  // 移到 SVG DOM 的最前面
+			this.dots.filter(d => selectedIDs.has(d.id)).raise();
 		}
 	}
 }

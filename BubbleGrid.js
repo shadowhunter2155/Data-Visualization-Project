@@ -298,6 +298,16 @@ export default class BubbleGrid {
 				const matched = ids.some(id => selectedIDs.has(id));
 				return selectedIDs.size === 0 || matched ? 0.8 : 0.1;
 			});
+		if (selectedIDs.size > 0) {
+			this.bubbles.filter(d => selectedIDs.has(d.id)).raise();
+		}
 	}
+
+	// TODO: beeswarm plot for clicking bubble
+
+}
+
+// TODO: beeswarm plot for clicking bubble
+class BeeswarmPlot {
 
 }

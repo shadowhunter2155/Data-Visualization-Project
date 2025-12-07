@@ -12,13 +12,15 @@ function createMargins(width, height) {
 
 
 export default class BarChart {
-	constructor(container, data, field, binWidth, isInterval, activeFiltersRef) {
+	constructor(container, data, field, binWidth, isInterval, activeFiltersRef, selectionManager) {
 		this.container = container;
 		this.data = data;
 		this.field = field;
 		this.binWidth = binWidth;
 		this.isInterval = isInterval;
 		this.activeFilters = activeFiltersRef;
+		this.selectionManager = selectionManager;
+		this.selectedIDs = new Set();
 
 		this.width = BAR_CHART_WIDTH;
 		this.height = BAR_CHART_HEIGHT;
@@ -196,7 +198,7 @@ export default class BarChart {
 			.attr("y", this.plotHeight)
 			.attr("height", 0)
 			.on("mouseover", (event, d) => this.showTooltip(event, d, groupBy))
-			.on("mouseout", () => this.tooltip.style("opacity", 0));
+			.on("mouseout", (event) => this.hideTooltip(event));
 		
 		layers.merge(layerEnter)
 			.attr("fill", d => this.colorScale(d.key))
@@ -214,27 +216,71 @@ export default class BarChart {
 
 	// tooltips
 	showTooltip(event, d, groupBy) {
+		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
 		const groupName = d3.select(event.currentTarget.parentNode).datum().key;
 		const count = d[1] - d[0];
-
 		let valueText = this.isInterval
 			? `<b>Value:</b> ${+d.data.key - this.binWidth / 2} - ${+d.data.key + this.binWidth / 2}`
 			: `<b>Value:</b> ${d.data.key}`;
 
 		let html = `<b>Count:</b> ${count}<br>
 			${valueText}`;
-
 		if (groupBy !== "") html += `<br><b>Group:</b> ${groupName}`;
-
 		this.tooltip
 			.style("opacity", 1)
 			.html(html)
 			.style("left", (event.pageX + 15) + "px")
 			.style("top", (event.pageY - 20) + "px");
 	}
+	hideTooltip(event) {
+		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
+		this.tooltip.style("opacity", 0);
+	}
 
 	// TODO: brush-and-link 
-	handleBrush(event){ // pain
+	handleBrush(event) {
+		const selection = event.selection;
+		if (!selection) {
+			// brush cleared
+			this.selectionManager({ [this.field]: [] });
+			return;
+		}
+		const [x0, x1] = selection;
 
+		// find data
+		const selectedIDs = this.data
+			.filter(d => {
+				const value = this.isInterval
+					? Math.round(d[this.field] / this.binWidth) * this.binWidth
+					: d[this.field];
+
+				const px = this.xScale(value);
+				return px >= x0 && px <= x1;
+			})
+			.map(d => d.id);
+
+		this.selectionManager({ [this.field]: selectedIDs });
+	}
+
+	applySelection(selectedIDs) {
+		// selectedIDs Set
+		this.inner.selectAll(".layer rect")
+			.transition().duration(180)
+			.attr("opacity", d => {
+				// find all id in bin
+				const value = this.isInterval
+					? Math.round(d.data.key / this.binWidth) * this.binWidth
+					: d.data.key;
+				const idsInBin = this.data
+					.filter(row => {
+						const v = this.isInterval
+							? Math.round(row[this.field] / this.binWidth) * this.binWidth
+							: row[this.field];
+						return v === value;
+					})
+					.map(row => row.id);
+				const matched = idsInBin.some(id => selectedIDs.has(id));
+				return selectedIDs.size === 0 || matched ? 1.0 : 0.15;
+			});
 	}
 }
