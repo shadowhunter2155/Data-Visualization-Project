@@ -11,14 +11,16 @@ function createMargins(width, height) {
 }
 
 export default class ScatterPlot {
-	constructor(container, data) {
+	constructor(container, data, selectionManager) {
 		this.container = container;
 		this.data = data;
+		this.selectionManager = selectionManager;
+		this.selectedIDs = new Set();
 
 		this.width = SCATTER_CHART_WIDTH;
 		this.height = SCATTER_CHART_HEIGHT;
 		this.margin = createMargins(this.width, this.height);
-
+		
 		this.plotWidth = this.width - this.margin.left - this.margin.right;
 		this.plotHeight = this.height - this.margin.top - this.margin.bottom;
 
@@ -53,22 +55,13 @@ export default class ScatterPlot {
 		// brush setup
 		this.brush = d3.brush()
 			.extent([[0, 0], [this.plotWidth, this.plotHeight]])
-			.on("brush end", (event) => this.handleBrush(event));
+			.on("end", (event) => this.handleBrush(event));
 		this.inner.append("g")
 			.attr("class", "brush")
 			.call(this.brush);
 		this.inner.select(".brush").lower();
 
-		this.update("Stress_Level"); // initial color field\
-
-
-		window.addEventListener('selectionChanged', (event) => {
-        this.highlightSelected(event.detail.selectedIds);
-    });
-    
-    window.addEventListener('selectionCleared', () => {
-        this.clearSelection();
-    });
+		this.update("Stress_Level"); // initial color field
 	}
 
 	drawAxes() {
@@ -142,7 +135,7 @@ export default class ScatterPlot {
 			.attr("stroke", "white")
 			.attr("stroke-width", 0.1)
 			.on("mouseover", (event, d) => this.showTooltip(event, d))
-			.on("mouseout", (event) => this.hideTooltip(event));
+			.on("mouseout", (event) => this.hideTooltip(event));	
 	}
 
 	drawLegend() {
@@ -152,6 +145,7 @@ export default class ScatterPlot {
 	}
 
 	showTooltip(event, d) {
+		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
 		d3.select(event.currentTarget).raise()
 			.transition().duration(200)
 			.attr("r", 7).attr("opacity", 1).attr("stroke-width", 1);
@@ -165,6 +159,7 @@ export default class ScatterPlot {
 		 .style("top", event.pageY - 20 + "px");
 	}
 	hideTooltip(event) {
+		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
 		d3.select(event.currentTarget)
 			.transition().duration(200)
 			.attr("r", 5).attr("opacity", 0.85).attr("stroke-width", 0.1);
@@ -227,66 +222,31 @@ export default class ScatterPlot {
 			.text(d => d);
 	}
 
-	// TODO: brush
+	// WIP: brush-and-link
 	handleBrush(event) {
-    if (!event.selection) {
-        // 如果刷取被清除，则清除所有选择
-        this.clearSelection();
-        return;
-    }
-    
-    const [[x0, y0], [x1, y1]] = event.selection;
-    
-    // 将刷取范围转换回数据坐标
-    const xDomain = this.xScale.domain();
-    const yDomain = this.yScale.domain();
-    
-    const selected = this.data.filter(d => {
-        const x = this.xScale(d.Daily_Screen_Time);
-        const y = this.yScale(d.Sleep_Quality);
-        return x >= x0 && x <= x1 && y >= y0 && y <= y1;
-    });
-    
-    // 获取选中数据的ID
-    const selectedIds = selected.map(d => d.id);
-    
-    // 触发全局选择更新
-    this.dispatchSelection(selectedIds);
-    
-    // 本地高亮
-    this.highlightSelected(selectedIds);
-}
+		const selection = event.selection;
+		if (!selection) {
+			this.selectionManager({ scatter: [] });
+			return;
+		}
+		const [[x0, y0], [x1, y1]] = selection;
+		const selected = this.data
+			.filter(d => {
+				const x = this.xScale(d.Daily_Screen_Time);
+				const y = this.yScale(d.Sleep_Quality);
+				return x0 <= x && x <= x1 && y0 <= y && y <= y1;
+			})
+			.map(d => d.id);
 
-// 添加 dispatchSelection 方法（需要与主文件通信）
-dispatchSelection(selectedIds) {
-    // 触发自定义事件，通知其他图表
-    const event = new CustomEvent('selectionChanged', {
-        detail: { selectedIds }
-    });
-    window.dispatchEvent(event);
-}
+		this.selectionManager({ scatter: selected });
+	}
 
-// 添加 highlightSelected 方法
-highlightSelected(selectedIds) {
-    this.dots
-        .attr('opacity', d => selectedIds.includes(d.id) ? 1 : 0.3)
-        .attr('r', d => selectedIds.includes(d.id) ? 7 : 5)
-        .attr('stroke-width', d => selectedIds.includes(d.id) ? 1.5 : 0.1);
-}
-
-// 添加 clearSelection 方法
-clearSelection() {
-    this.dots
-        .attr('opacity', 0.8)
-        .attr('r', 5)
-        .attr('stroke-width', 0.1);
-    
-    // 清除刷取区域
-    this.inner.select(".brush").call(this.brush.move, null);
-    
-    // 通知其他图表
-    window.dispatchEvent(new CustomEvent('selectionCleared'));
-}
-
-
+	applySelection(selectedIDs) {
+		this.dots.transition().duration(150)
+			.attr("opacity", d => selectedIDs.size === 0 || selectedIDs.has(d.id) ? 0.8 : 0.1);
+		if (selectedIDs.size > 0) {
+			this.dots.filter(d => selectedIDs.has(d.id))
+				.raise();  // 移到 SVG DOM 的最前面
+		}
+	}
 }

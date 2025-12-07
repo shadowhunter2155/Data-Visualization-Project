@@ -4,11 +4,21 @@ import ScatterPlot from './ScatterPlot.js';
 
 let activeFilters = {
 	Gender: [],
-	Social_Media_Platform: []
+	Social_Media_Platform: [],
+	Age: [],
+	Daily_Screen_Time: [],
+	Sleep_Quality: [],
+	Days_Without_Social_Media: [],
+	Exercise_Frequency: [],
+	Happiness_Index: [],
+	Gender: [],
+	Social_Media_Platform: [],
+	Scatter: [],
+	Bubble: []
 };
 
-let selectedData = new Set();
-let charts = {};
+let selectedIDs = new Set();
+let allCharts = {};
 
 // load data
 d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawData => {
@@ -44,10 +54,11 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 			cfg.field,
 			cfg.bin_width,
 			cfg.isInterval,
-			activeFilters
+			activeFilters,
+			selectionManager
 		);
 		barCharts.push(chart);
-		charts[cfg.id] = chart;
+		allCharts[cfg.id] = chart;
 	});
 	// dropdown change listener
 	d3.select("#groupSelector").on("change", function () {
@@ -57,10 +68,10 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 	});
 
 	// init scatter chart
-	let scatterChart = new ScatterPlot("#scatter", data);
-	let bubbleChart = new BubbleGrid("#bubble", data);
-	charts.scatter = scatterChart;
-	charts.bubble = bubbleChart;
+	let scatterChart = new ScatterPlot("#scatter", data, selectionManager);
+	let bubbleChart = new BubbleGrid("#bubble", data, selectionManager);
+	allCharts.scatter = scatterChart;
+	allCharts.bubble = bubbleChart;
 
 	// dropdown change listener
 	d3.select("#scatterColorSelector").on("change", function () {
@@ -68,10 +79,6 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		scatterChart.update(field);
 		bubbleChart.update(field);
 	});
-
-	d3.select("#clearSelection").on("click", function() {
-    clearSelection();
-});
 
 	// filter for bar charts
 	function updateFilterOptions(groupBy) {
@@ -118,24 +125,30 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		}
 	}
 	
-	// linking
-	function syncSelection(selectedIds) {
-		selectedData = new Set(selectedIds);
-		
-		//  update all
-		Object.values(charts).forEach(chart => {
-			if (chart.highlightSelected) {
-				chart.highlightSelected(selectedIds);
-			}
-		});
-	}
-	function clearSelection() {
-		selectedData.clear();
-		Object.values(charts).forEach(chart => {
-			if (chart.clearHighlight) {
-				chart.clearHighlight();
-			}
-		});
+	// WIP: brush-and-link system
+	function selectionManager(update) {
+		for (let key in update) {
+			activeFilters[key] = update[key];
+		}
+		// intersect
+		let sets = Object.values(activeFilters)
+			.filter(arr => Array.isArray(arr) && arr.length > 0)
+			.map(arr => new Set(arr));
+
+		let finalSet = new Set();
+		if (sets.length === 0) { // no selected
+			data.forEach(d => finalSet.add(d.id));
+		} else {
+			finalSet = sets.reduce((a, b) => {
+				return new Set([...a].filter(x => b.has(x)));
+			});
+		}
+		// update all
+		for (let key in allCharts) {
+			if (allCharts[key].applySelection)
+				allCharts[key].applySelection(finalSet);
+		}
+		selectedIDs = finalSet;
 	}
 });
 

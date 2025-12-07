@@ -11,10 +11,12 @@ function createMargins(width, height) {
 }
 
 export default class BubbleGrid {
-	constructor(container, data) {
+	constructor(container, data, selectionManager) {
 		this.container = container;
 		this.data = data;
 		this.currentColorField = "Stress_Level";
+		this.selectionManager = selectionManager;
+		this.selectedIDs = new Set();
 
 		this.width = BUBBLE_CHART_WIDTH;
 		this.height = BUBBLE_CHART_HEIGHT;
@@ -59,21 +61,13 @@ export default class BubbleGrid {
 		// brush setup
 		this.brush = d3.brush()
 			.extent([[0, 0], [this.plotWidth, this.plotHeight]])
-			.on("brush end", (event) => this.handleBrush(event));
+			.on("end", (event) => this.handleBrush(event));
 		this.inner.append("g")
 			.attr("class", "brush")
 			.call(this.brush);
 		this.inner.select(".brush").lower();
 		
 		this.update(this.currentColorField);
-
-		window.addEventListener('selectionChanged', (event) => {
-        this.highlightSelected(event.detail.selectedIds);
-    });
-    
-    window.addEventListener('selectionCleared', () => {
-        this.clearSelection();
-    });
 	}
 
 	drawAxes() {
@@ -178,9 +172,11 @@ export default class BubbleGrid {
 			.on("mouseover", (event, d) => this.showTooltip(event, d))
 			.on("mouseout", (event, d) => this.hideTooltip(event, d))
 			.on("click", (event, d) => console.log("Selected grid cell:", d));
+
 	}
 
 	showTooltip(event, d) {
+		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
 		d3.select(event.currentTarget).raise()
 			.transition().duration(200)
 			.attr("opacity", 1)
@@ -194,8 +190,8 @@ export default class BubbleGrid {
 		).style("left", (event.pageX + 15) + "px")
 		 .style("top", (event.pageY - 20) + "px");
 	}
-
 	hideTooltip(event, d) {
+		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
 		d3.select(event.currentTarget)
 			.transition().duration(200)
 			.attr("opacity", 0.8)
@@ -269,63 +265,39 @@ export default class BubbleGrid {
 			.attr("r", d => this.sizeScale(d.count))
 			.attr("fill", d => this.colorScale(d.avgValue));
 
-		this.updateLegend(field);
+		this.updateLegend(field)
 	}
 
-	// TODO: brush-and-link
+	// WIP: brush-and-link
 	handleBrush(event) {
-    if (!event.selection) {
-        this.clearSelection();
-        return;
-    }
-    
-    const [[x0, y0], [x1, y1]] = event.selection;
-    
-    // 收集刷取区域内的所有数据点
-    const selectedIds = [];
-    this.aggregatedData.forEach(bubble => {
-        const cx = this.xScale(bubble.x) + this.xScale.bandwidth() / 2;
-        const cy = this.yScale(bubble.y) + this.yScale.bandwidth() / 2;
-        const r = this.sizeScale(bubble.count);
-        
-        // 检查气泡是否在刷取区域内
-        if (cx - r <= x1 && cx + r >= x0 && 
-            cy - r <= y1 && cy + r >= y0) {
-            bubble.points.forEach(point => selectedIds.push(point.id));
-        }
-    });
-    
-    // 触发全局选择更新
-    const eventObj = new CustomEvent('selectionChanged', {
-        detail: { selectedIds: [...new Set(selectedIds)] }
-    });
-    window.dispatchEvent(eventObj);
-    
-    // 本地高亮
-    this.highlightSelected(selectedIds);
-}
+		const selection = event.selection;
+		if (!selection) {
+			this.selectionManager({ bubble: [] });
+			return;
+		}
+		const [[x0, y0], [x1, y1]] = selection;
 
-highlightSelected(selectedIds) {
-    this.bubbles
-        .attr('opacity', d => {
-            // 检查气泡内是否有选中的数据点
-            const hasSelected = d.points.some(p => selectedIds.includes(p.id));
-            return hasSelected ? 1 : 0.3;
-        })
-        .attr('stroke-width', d => {
-            const hasSelected = d.points.some(p => selectedIds.includes(p.id));
-            return hasSelected ? 2.5 : 1;
-        });
-}
+		let selectedIDs = [];
 
-clearSelection() {
-    this.bubbles
-        .attr('opacity', 0.8)
-        .attr('stroke-width', 1);
-    
-    this.inner.select(".brush").call(this.brush.move, null);
-    
-    window.dispatchEvent(new CustomEvent('selectionCleared'));
-}
+		this.aggregatedData.forEach(cell => {
+			const x = this.xScale(cell.x) + this.xScale.bandwidth() / 2;
+			const y = this.yScale(cell.y) + this.yScale.bandwidth() / 2;
+
+			if (x0 <= x && x <= x1 && y0 <= y && y <= y1) {
+				selectedIDs.push(...cell.points.map(p => p.id));
+			}
+		});
+
+		this.selectionManager({ bubble: selectedIDs });
+	}
+
+	applySelection(selectedIDs) {
+		this.bubbles.transition().duration(150)
+			.attr("opacity", d => {
+				const ids = d.points.map(p => p.id);
+				const matched = ids.some(id => selectedIDs.has(id));
+				return selectedIDs.size === 0 || matched ? 0.8 : 0.1;
+			});
+	}
 
 }

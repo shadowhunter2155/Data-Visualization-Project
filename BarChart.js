@@ -49,13 +49,12 @@ export default class BarChart {
 
 		this.inner = this.svg.append("g")
 			.attr("transform", `translate(${this.margin.left},${this.margin.top})`);
-
+			
+		// scales
 		this.xScale = d3.scaleLinear().range([0, this.plotWidth]);
 		this.yScale = d3.scaleLinear().range([this.plotHeight, 0]);
 
-		this.xAxisG = this.inner.append("g")
-			.attr("transform", `translate(0, ${this.plotHeight})`);
-
+		this.xAxisG = this.inner.append("g").attr("transform", `translate(0, ${this.plotHeight})`);
 		this.yAxisG = this.inner.append("g");
 
 		// color palettes
@@ -92,7 +91,7 @@ export default class BarChart {
 		// brush setup
 		this.brush = d3.brushX()
 			.extent([[0, 0], [this.plotWidth, this.plotHeight]])
-			.on("brush end", (event) => this.handleBrush(event));
+			.on("end", (event) => this.handleBrush(event));
 		this.inner.append("g")
 			.attr("class", "brush")
 			.call(this.brush);
@@ -234,8 +233,8 @@ export default class BarChart {
 			.style("top", (event.pageY - 20) + "px");
 	}
 
-	// TODO: brush-and-link
-	handleBrush(event){
+	// TODO: brush-and-link 
+	handleBrush(event){ // pain
 
 	}
 }
