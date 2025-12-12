@@ -292,7 +292,7 @@ export default class BubbleGrid {
 	}
 
 	applySelection(selectedIDs) {
-		this.bubbles.transition().duration(150)
+		this.bubbles.transition().duration(200)
 			.attr("opacity", d => {
 				const ids = d.points.map(p => p.id);
 				const matched = ids.some(id => selectedIDs.has(id));

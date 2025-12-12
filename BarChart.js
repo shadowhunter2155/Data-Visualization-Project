@@ -101,13 +101,12 @@ export default class BarChart {
 
 		this.update("");  // initial render
 	}
-
+	
 	prepareData(groupBy) {
 		let filtered = this.data;
 		if (groupBy !== "" && this.activeFilters[groupBy]?.length > 0) {
-			filtered = filtered.filter(d =>
-				this.activeFilters[groupBy].includes(d[groupBy])
-			);
+			const idSet = new Set(this.activeFilters[groupBy]);
+			filtered = filtered.filter(d => idSet.has(d.id));
 		}
 		// no filter
 		if (groupBy === "") {
@@ -151,7 +150,6 @@ export default class BarChart {
 	// update
 	update(groupBy) {
 		const { groups, barData } = this.prepareData(groupBy);
-
 		// update color scale
 		if (groupBy === "Gender")
 			this.colorScale = d3.scaleOrdinal().domain(groups).range(Object.values(this.genderColors));
@@ -183,6 +181,8 @@ export default class BarChart {
 		// draw bars
 		const layers = this.inner.selectAll(".layer")
 			.data(stacked, d => d.key);
+		
+		layers.exit().remove();
 
 		const layerEnter = layers.enter()
 			.append("g")
@@ -197,8 +197,10 @@ export default class BarChart {
 			.attr("width", barWidth)
 			.attr("y", this.plotHeight)
 			.attr("height", 0)
+			.attr("opacity", 1)
 			.on("mouseover", (event, d) => this.showTooltip(event, d, groupBy))
 			.on("mouseout", (event) => this.hideTooltip(event));
+			
 		
 		layers.merge(layerEnter)
 			.attr("fill", d => this.colorScale(d.key))
@@ -206,12 +208,8 @@ export default class BarChart {
 			.data(d => d)
 			.transition()
 			.duration(600)
-			.attr("x", d => this.xScale(+d.data.key) - barWidth / 2)
-			.attr("width", barWidth)
 			.attr("y", d => this.yScale(d[1]))
 			.attr("height", d => this.yScale(d[0]) - this.yScale(d[1]));
-
-		layers.exit().remove();
 	}
 
 	// tooltips
@@ -265,7 +263,7 @@ export default class BarChart {
 	applySelection(selectedIDs) {
 		// selectedIDs Set
 		this.inner.selectAll(".layer rect")
-			.transition().duration(180)
+			.transition().duration(200)
 			.attr("opacity", d => {
 				// find all id in bin
 				const value = this.isInterval

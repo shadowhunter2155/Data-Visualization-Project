@@ -242,7 +242,7 @@ export default class ScatterPlot {
 	}
 
 	applySelection(selectedIDs) {
-		this.dots.transition().duration(150)
+		this.dots.transition().duration(200)
 			.attr("opacity", d => selectedIDs.size === 0 || selectedIDs.has(d.id) ? 0.8 : 0.05);
 		if (selectedIDs.size > 0) {
 			this.dots.filter(d => selectedIDs.has(d.id)).raise();

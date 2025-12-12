@@ -11,8 +11,6 @@ let activeFilters = {
 	Days_Without_Social_Media: [],
 	Exercise_Frequency: [],
 	Happiness_Index: [],
-	Gender: [],
-	Social_Media_Platform: [],
 	Scatter: [],
 	Bubble: []
 };
@@ -80,45 +78,43 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		bubbleChart.update(field);
 	});
 
-	// filter for bar charts
+	// the filter options region for bar charts
 	function updateFilterOptions(groupBy) {
 		const filterContainer = d3.select("#filterContainer");
 		filterContainer.html("");
-		if (groupBy === "") {
+		if (!groupBy) {
 			filterContainer.style("display", "none");
-			return; 
+			return;
 		}
 		filterContainer.style("display", "flex");
 
 		const uniqueValues = [...new Set(data.map(d => d[groupBy]))].sort();
-		const filterOptions = filterContainer.selectAll(".filter-option")
-			.data(uniqueValues)
-			.enter()
-			.append("div")
-			.attr("class", `filter-option filter-label`);
+		const filterOptions = filterContainer.selectAll(".filter-option").data(uniqueValues)
+			.enter().append("div").attr("class", "filter-option filter-label");
 		
 		filterOptions.append("input")
 			.attr("type", "checkbox")
-			.attr("id", d => `filter-${groupBy}-${d}`)
-			.attr("value", d => d)
 			.attr("checked", true) // all for default
-			.on("change", function(event, d) {
-				handleFilterChange(groupBy, d, this.checked);
+			.on("change", function(event, category) {
+				handleFilterChange(groupBy, category, this.checked);
 			});
 		filterOptions.append("span").text(d => d);
-		activeFilters[groupBy] = [...uniqueValues];
+		activeFilters[groupBy] = data.filter(d => uniqueValues.includes(d[groupBy])).map(d => d.id);
+		selectionManager({ [groupBy]: activeFilters[groupBy] });
 		barCharts.forEach(chart => chart.update(groupBy));
 	}
 
-	function handleFilterChange(groupBy, value, isChecked) {
+	function handleFilterChange(groupBy, category, isChecked) {
 		if (isChecked) {
-			if (!activeFilters[groupBy].includes(value)) {
-				activeFilters[groupBy].push(value);
-			}
+			const ids = data.filter(d => d[groupBy] === category).map(d => d.id);
+			activeFilters[groupBy] = [...new Set([
+				...activeFilters[groupBy], ...ids ])];
 		} else {
-			activeFilters[groupBy] = activeFilters[groupBy].filter(v => v !== value);
+			const removeIDs = new Set(data.filter(d => d[groupBy] === category).map(d => d.id));
+
+			activeFilters[groupBy] = activeFilters[groupBy].filter(id => !removeIDs.has(id));
 		}
-		//update
+		selectionManager({ [groupBy]: activeFilters[groupBy] });
 		const currentGroupBy = d3.select("#groupSelector").node().value;
 		if (currentGroupBy === groupBy) {
 			barCharts.forEach(chart => chart.update(groupBy));
@@ -131,24 +127,17 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 			activeFilters[key] = update[key];
 		}
 		// intersect
-		let sets = Object.values(activeFilters)
-			.filter(arr => Array.isArray(arr) && arr.length > 0)
-			.map(arr => new Set(arr));
+		const sets = Object.keys(activeFilters)
+			.filter(key => Array.isArray(activeFilters[key]) && activeFilters[key].length > 0)
+			.map(key => new Set(activeFilters[key]));
 
-		let finalSet = new Set();
-		if (sets.length === 0) { // no selected
-			data.forEach(d => finalSet.add(d.id));
-		} else {
-			finalSet = sets.reduce((a, b) => {
-				return new Set([...a].filter(x => b.has(x)));
-			});
+		let finalSet = sets.length === 0
+				? new Set(data.map(d => d.id)) // no filter = all
+				: sets.reduce((a, b) => new Set([...a].filter(x => b.has(x))));
+
+		for (let k in allCharts) {
+			allCharts[k].applySelection(finalSet);
 		}
-		// update all
-		for (let key in allCharts) {
-			if (allCharts[key].applySelection)
-				allCharts[key].applySelection(finalSet);
-		}
-		selectedIDs = finalSet;
 	}
 });
 
