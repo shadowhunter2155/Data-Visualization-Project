@@ -15,7 +15,6 @@ let activeFilters = {
 	Bubble: []
 };
 
-let selectedIDs = new Set();
 let allCharts = {};
 
 // load data
