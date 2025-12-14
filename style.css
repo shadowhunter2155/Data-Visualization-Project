@@ -98,10 +98,6 @@ h3 {
 	font-weight: bold;
 }
 
-.filter-label {
-	color: #1e5ba0;
-}
-
 .brush .selection {
 	fill: gray;
 	fill-opacity: 0.2;

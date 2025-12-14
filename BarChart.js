@@ -182,10 +182,26 @@ export default class BarChart {
 
 		const stacked = d3.stack().keys(groups).value((d, k) => d[k] || 0)(stackData);
 
+		// y-axis
 		this.yScale.domain([0, d3.max(stacked, layer => d3.max(layer, d => d[1])) * 1.05]).nice();
 
 		this.xAxisG.call(d3.axisBottom(this.xScale).tickSizeOuter(0));
 		this.yAxisG.call(d3.axisLeft(this.yScale).ticks(6).tickSizeOuter(0));
+
+
+		// make axis not selectable
+		this.yAxisG.selectAll("text")
+			.style("user-select", "none")
+			.style("-webkit-user-select", "none")
+			.style("-moz-user-select", "none")
+			.style("-ms-user-select", "none");
+
+		this.xAxisG.selectAll("text")
+			.style("user-select", "none")
+			.style("-webkit-user-select", "none")
+			.style("-moz-user-select", "none")
+			.style("-ms-user-select", "none");
+	
 
 		// draw bars
 		const layers = this.inner.selectAll(".layer")

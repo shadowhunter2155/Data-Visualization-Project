@@ -82,6 +82,13 @@ export default class BubbleGrid {
 		this.inner.append("g")
 			.call(d3.axisLeft(this.yScale).tickSizeOuter(0))
 			.style("font-size", "12px");
+		
+		// make them not selectable
+		this.svg.selectAll("text")
+			.style("user-select", "none")
+			.style("-webkit-user-select", "none")
+			.style("-moz-user-select", "none")
+			.style("-ms-user-select", "none");
 
 		// labels
 		this.svg.append("text")

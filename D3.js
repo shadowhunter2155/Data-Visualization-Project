@@ -14,6 +14,19 @@ let activeFilters = {
 	Scatter: [],
 	Bubble: []
 };
+const genderColors = {
+	"Male": "#4A90E2",
+	"Female": "#FF69B4",
+	"Other": "#9E9E9E"
+};
+const socialColors = {
+	"Facebook": "#1f77b4",
+	"Instagram": "#2ca02c",
+	"LinkedIn": "#8c564b",			
+	"TikTok": "#ff7f0e",
+	"X (Twitter)": "#9467bd",
+	"YouTube": "#d62728"
+};
 
 let allCharts = {};
 
@@ -89,7 +102,7 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 
 		const uniqueValues = [...new Set(data.map(d => d[groupBy]))].sort();
 		const filterOptions = filterContainer.selectAll(".filter-option").data(uniqueValues)
-			.enter().append("div").attr("class", "filter-option filter-label");
+			.enter().append("div").attr("class", "filter-option");
 		
 		filterOptions.append("input")
 			.attr("type", "checkbox")
@@ -97,7 +110,12 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 			.on("change", function(event, category) {
 				handleFilterChange(groupBy, category, this.checked);
 			});
-		filterOptions.append("span").text(d => d);
+		
+		filterOptions.append("span").text(d => d).style("color", d => {
+			if (groupBy === "Gender") return genderColors[d];
+			if (groupBy === "Social_Media_Platform") return socialColors[d];
+			return "#1e5ba0"; // default color
+        });
 		activeFilters[groupBy] = data.filter(d => uniqueValues.includes(d[groupBy])).map(d => d.id);
 		selectionManager({ [groupBy]: activeFilters[groupBy] });
 		barCharts.forEach(chart => chart.update(groupBy));
@@ -120,7 +138,7 @@ d3.csv("dataset/Mental_Health_and_Social_Media_Balance_Dataset.csv").then(rawDat
 		}
 	}
 	
-	// WIP: brush-and-link system
+	// brush-and-link system
 	function selectionManager(update) {
 		for (let key in update) {
 			activeFilters[key] = update[key];
