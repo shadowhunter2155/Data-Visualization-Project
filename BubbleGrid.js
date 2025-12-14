@@ -178,43 +178,31 @@ export default class BubbleGrid {
 	}
 
 	showTooltip(event, d, isOverlay = false) {
-		if(isOverlay) {
-			this.tooltip.style("opacity", 1).html(
-				`<b>Exercise Frequency:</b> ${d.x}<br>
-				 <b>Days Without Social Media:</b> ${d.y}<br>
-				 <b>Number of Selected People:</b> ${d.selectedCount}<br>
-				 <b>Avg ${this.currentColorField.replace(/_/g, " ")}:</b> ${d.avgValue.toFixed(2)}<br>
-				 <i>(Selected subset)</i>`
-			).style("left", (event.pageX + 15) + "px")
-			 .style("top", (event.pageY - 20) + "px");
-		} else {
-			const opacity = +d3.select(event.currentTarget).attr("opacity");
-			if(opacity < 0.5) return;
+		const opacity = +d3.select(event.currentTarget).attr("opacity");
+		if(opacity < 0.5) return;
 
-			d3.select(event.currentTarget).raise()
+		d3.select(event.currentTarget).raise()
 				.transition().duration(200)
 				.attr("opacity", 1)
 				.attr("stroke-width", 2.5);
 
-			this.tooltip.style("opacity", 1).html(
+		this.tooltip.style("opacity", 1).html(
 				`<b>Exercise Frequency:</b> ${d.x}<br>
 				 <b>Days Without Social Media:</b> ${d.y}<br>
-				 <b>Number of People:</b> ${d.count}<br>
-				 <b>Avg ${this.currentColorField.replace(/_/g, " ")}:</b> ${d.avgValue.toFixed(2)}`
+				 <b>Number of Selected People:</b> ${isOverlay ? d.selectedCount : d.count}<br>
+				 <b>Avg ${this.currentColorField.replace(/_/g, " ")}:</b> ${d.avgValue.toFixed(2)}<br>`
+					+ (isOverlay ? `<i>(Selected subset)</i>` : ``)
 			).style("left", (event.pageX + 15) + "px")
 			 .style("top", (event.pageY - 20) + "px");
-		}
 	}
 
 	hideTooltip(event, d, isOverlay = false) {
-		if(!isOverlay) {
-			const opacity = +d3.select(event.currentTarget).attr("opacity");
-			if(opacity < 0.5) return;
-			d3.select(event.currentTarget)
-				.transition().duration(200)
-				.attr("opacity", 0.8)
-				.attr("stroke-width", 1.5);
-		}
+		const opacity = +d3.select(event.currentTarget).attr("opacity");
+		if(opacity < 0.5) return;
+		d3.select(event.currentTarget)
+			.transition().duration(200)
+			.attr("opacity", 0.8)
+			.attr("stroke-width", 1.5);
 		this.tooltip.style("opacity", 0);
 	}
 

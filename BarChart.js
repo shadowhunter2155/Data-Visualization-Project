@@ -21,6 +21,7 @@ export default class BarChart {
 		this.activeFilters = activeFiltersRef;
 		this.selectionManager = selectionManager;
 		this.selectedIDs = new Set();
+		this.currentSelection = new Set(data.map(d => d.id));
 
 		this.width = BAR_CHART_WIDTH;
 		this.height = BAR_CHART_HEIGHT;
@@ -110,14 +111,17 @@ export default class BarChart {
 		}
 		// no filter
 		if (groupBy === "") {
-			const grouped = d3.rollups(
-				filtered,
-				v => v.length,
-				d => this.isInterval ? Math.round(d[this.field] / this.binWidth) * this.binWidth : d[this.field]
-			);
+			const grouped = d3.rollups(	filtered,
+				v => ({
+					value: v.filter(d => this.currentSelection.has(d.id)).length,
+					total: v.length	}),
+				d => this.isInterval
+					? Math.round(d[this.field] / this.binWidth) * this.binWidth
+					: d[this.field]	);
 			const barData = this.allBins.map(bin => {
 				const found = grouped.find(([key]) => key === bin);
-				return { key: bin, values: [{ group: "All", value: found ? found[1] : 0 }] };
+				return { key: bin, values: [{ group: "All",
+						value: found ? found[1].value : 0, total: found ? found[1].total : 0} ]};
 			});
 			return { groups: ["All"], barData };
 		}
@@ -135,11 +139,16 @@ export default class BarChart {
 
 		const barData = this.allBins.map(bin => {
 			const values = grouped.get(bin) || [];
-			const counts = d3.rollups(values, v => v.length, d => d[groupBy]);
+			const totalCounts = d3.rollups( values,	v => v.length,	d => d[groupBy]	);
+			const selectedCounts = d3.rollups(values,
+				v => v.filter(d => this.currentSelection.has(d.id)).length,
+				d => d[groupBy]
+			);
 			return {
 				key: bin,
 				values: groups.map(g => ({ group: g,
-					value: counts.find(c => c[0] === g)?.[1] || 0
+					value: selectedCounts.find(c => c[0] === g)?.[1] || 0,
+					total: totalCounts.find(c => c[0] === g)?.[1] || 0
 				}))
 			};
 		});
@@ -214,16 +223,29 @@ export default class BarChart {
 
 	// tooltips
 	showTooltip(event, d, groupBy) {
-		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
+		if (+d3.select(event.currentTarget).attr("opacity") < 0.5) return;
+
 		const groupName = d3.select(event.currentTarget.parentNode).datum().key;
 		const count = d[1] - d[0];
-		let valueText = this.isInterval
-			? `<b>Value:</b> ${+d.data.key - this.binWidth / 2} - ${+d.data.key + this.binWidth / 2}`
-			: `<b>Value:</b> ${d.data.key}`;
 
-		let html = `<b>Count:</b> ${count}<br>
-			${valueText}`;
+		const binData = d.data;
+		const valueObj = this.prepareTooltipValue(binData, groupName);
+		const total = valueObj?.total || 0;
+
+		const ratio = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+
+		let valueText = this.isInterval
+			? `<b>Value:</b> ${+binData.key - this.binWidth / 2} - ${+binData.key + this.binWidth / 2}`
+			: `<b>Value:</b> ${binData.key}`;
+
+		let html = `<b>Count:</b> ${count}`;
+		if (total > 0 && count < total) {
+			html += `<br><b>Select:</b> ${ratio}%`;
+		}
+		html += `<br>${valueText}`;
+
 		if (groupBy !== "") html += `<br><b>Group:</b> ${groupName}`;
+
 		this.tooltip
 			.style("opacity", 1)
 			.html(html)
@@ -234,8 +256,17 @@ export default class BarChart {
 		if(+d3.select(event.currentTarget).attr("opacity") < 0.5) return; // not selected, no tooltip
 		this.tooltip.style("opacity", 0);
 	}
+	prepareTooltipValue(binData, groupName) {
+		const groupBy = d3.select("#groupSelector").node()?.value || "";
+		const bar = this.prepareData(groupBy).barData
+			.find(b => b.key === binData.key);
 
-	// TODO: brush-and-link 
+		if (!bar) return null;
+		return bar.values.find(v => v.group === groupName);
+	}
+
+
+	// brush-and-link 
 	handleBrush(event) {
 		const selection = event.selection;
 		if (!selection) {
@@ -261,24 +292,8 @@ export default class BarChart {
 	}
 
 	applySelection(selectedIDs) {
-		// selectedIDs Set
-		this.inner.selectAll(".layer rect")
-			.transition().duration(200)
-			.attr("opacity", d => {
-				// find all id in bin
-				const value = this.isInterval
-					? Math.round(d.data.key / this.binWidth) * this.binWidth
-					: d.data.key;
-				const idsInBin = this.data
-					.filter(row => {
-						const v = this.isInterval
-							? Math.round(row[this.field] / this.binWidth) * this.binWidth
-							: row[this.field];
-						return v === value;
-					})
-					.map(row => row.id);
-				const matched = idsInBin.some(id => selectedIDs.has(id));
-				return selectedIDs.size === 0 || matched ? 1.0 : 0.15;
-			});
+		this.currentSelection = selectedIDs;
+		const groupBy = d3.select("#groupSelector").node()?.value || "";
+		this.update(groupBy);
 	}
 }
